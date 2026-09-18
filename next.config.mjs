@@ -13,8 +13,20 @@ const nextConfig = {
       {
         protocol: 'https',
         hostname: 'api.dicebear.com',
-      }
+      },
     ],
+  },
+  async rewrites() {
+    return [
+      {
+        source: '/line/webhook',
+        destination: '/api/line/webhook',
+      },
+      {
+        source: '/line/send',
+        destination: '/api/line/send',
+      },
+    ];
   },
 };
 

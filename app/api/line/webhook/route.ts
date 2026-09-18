@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/lib/store';
 
+export async function GET() {
+  return NextResponse.json({ status: 'active', message: 'LINE Webhook endpoint is ready' }, { status: 200 });
+}
+
 // Helper to verify LINE HMAC-SHA256 signature
 function verifyLineSignature(bodyText: string, channelSecret: string, signature: string): boolean {
   if (!channelSecret || !signature) return false;
