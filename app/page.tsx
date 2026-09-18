@@ -203,6 +203,7 @@ export default function WebchatPage() {
         onSendMessage={handleSendMessage}
         onSimulateIncomingMessage={handleSimulateIncomingMessage}
         isLoadingMessages={isLoadingMessages}
+        isLiveMode={isLiveMode}
       />
     </main>
   );

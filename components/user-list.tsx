@@ -50,7 +50,7 @@ export function UserList({
           </div>
         </div>
 
-        {onAddMockUser && (
+        {!isLiveMode && onAddMockUser && (
           <button
             onClick={onAddMockUser}
             title="จำลองสร้าง User ใหม่ (สำหรับทดสอบ)"

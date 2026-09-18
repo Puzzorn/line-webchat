@@ -10,6 +10,7 @@ interface ChatBoxProps {
   onSendMessage: (text: string) => Promise<void>;
   onSimulateIncomingMessage?: (text: string) => Promise<void>;
   isLoadingMessages?: boolean;
+  isLiveMode?: boolean;
 }
 
 export function ChatBox({
@@ -18,6 +19,7 @@ export function ChatBox({
   onSendMessage,
   onSimulateIncomingMessage,
   isLoadingMessages,
+  isLiveMode = false,
 }: ChatBoxProps) {
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState('');
@@ -112,7 +114,7 @@ export function ChatBox({
         </div>
 
         <div className="flex items-center space-x-2">
-          {onSimulateIncomingMessage && (
+          {!isLiveMode && onSimulateIncomingMessage && (
             <button
               onClick={() => setShowSimulateInput(!showSimulateInput)}
               className="text-xs px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors border border-emerald-200 flex items-center space-x-1 font-medium"
@@ -126,7 +128,7 @@ export function ChatBox({
       </div>
 
       {/* Simulate Input Overlay Banner */}
-      {showSimulateInput && onSimulateIncomingMessage && (
+      {!isLiveMode && showSimulateInput && onSimulateIncomingMessage && (
         <form
           onSubmit={handleSimulateIncoming}
           className="p-3 bg-amber-50 border-b border-amber-200 flex items-center space-x-2 animate-fadeIn"
