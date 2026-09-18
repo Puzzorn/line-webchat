@@ -4,6 +4,7 @@ import { LineUserProfile, ChatMessage } from './types';
 const globalStore = globalThis as unknown as {
   usersMap: Map<string, LineUserProfile>;
   messagesMap: Map<string, ChatMessage[]>;
+  isInitialized: boolean;
 };
 
 if (!globalStore.usersMap) {
@@ -12,11 +13,24 @@ if (!globalStore.usersMap) {
 
 if (!globalStore.messagesMap) {
   globalStore.messagesMap = new Map<string, ChatMessage[]>();
-  
-  // Seed demo data for testing UI out of the box
+}
+
+// Check env credentials to determine if Live Mode is active
+const secret = process.env.LINE_CHANNEL_SECRET || '';
+const token = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+const isLiveConfigured = Boolean(
+  secret &&
+  secret !== 'your_line_channel_secret_here' &&
+  token &&
+  token !== 'your_line_channel_access_token_here'
+);
+
+// Seed demo data ONLY if NOT in Live Mode and store has not been initialized yet
+if (!isLiveConfigured && !globalStore.isInitialized) {
+  globalStore.isInitialized = true;
   const demoUserId = 'U1234567890abcdef1234567890abcdef';
   const now = Date.now();
-  
+
   globalStore.usersMap.set(demoUserId, {
     userId: demoUserId,
     displayName: 'Somchai (LINE User Demo)',
@@ -79,5 +93,11 @@ export const db = {
     }
 
     return message;
-  }
+  },
+
+  clearDemoUsers: () => {
+    const demoUserId = 'U1234567890abcdef1234567890abcdef';
+    globalStore.usersMap.delete(demoUserId);
+    globalStore.messagesMap.delete(demoUserId);
+  },
 };

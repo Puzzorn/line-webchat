@@ -2,13 +2,14 @@
 
 import { useState } from 'react';
 import { LineUserProfile } from '@/lib/types';
-import { MessageSquare, User, Search, PlusCircle } from 'lucide-react';
+import { User, Search, PlusCircle, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 interface UserListProps {
   users: LineUserProfile[];
   selectedUserId: string | null;
   onSelectUser: (userId: string) => void;
   onAddMockUser?: () => void;
+  isLiveMode?: boolean;
 }
 
 export function UserList({
@@ -16,6 +17,7 @@ export function UserList({
   selectedUserId,
   onSelectUser,
   onAddMockUser,
+  isLiveMode = false,
 }: UserListProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -44,7 +46,7 @@ export function UserList({
           </div>
           <div>
             <h1 className="font-bold text-base leading-tight">LINE OA Webchat</h1>
-            <p className="text-xs text-emerald-150 opacity-90">ผู้ใช้งานทั้งหมด ({users.length})</p>
+            <p className="text-xs text-emerald-100 opacity-90">ผู้ใช้งานทั้งหมด ({users.length})</p>
           </div>
         </div>
 
@@ -56,6 +58,22 @@ export function UserList({
           >
             <PlusCircle className="w-5 h-5" />
           </button>
+        )}
+      </div>
+
+      {/* Live Mode vs Demo Mode Status Indicator */}
+      <div className="px-3 py-2 border-b border-slate-200 bg-slate-100 flex items-center justify-between text-xs">
+        <span className="font-medium text-slate-600">สถานะระบบ:</span>
+        {isLiveMode ? (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
+            <CheckCircle2 className="w-3 h-3 mr-1 text-emerald-600" />
+            LIVE (เชื่อมต่อ LINE API)
+          </span>
+        ) : (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-300">
+            <AlertTriangle className="w-3 h-3 mr-1 text-amber-600" />
+            DEMO (โหมดจำลอง)
+          </span>
         )}
       </div>
 
@@ -79,7 +97,11 @@ export function UserList({
           <div className="p-8 text-center text-slate-400 text-sm">
             <User className="w-10 h-10 mx-auto mb-2 opacity-40" />
             <p>ไม่พบรายชื่อผู้ใช้งาน</p>
-            <p className="text-xs text-slate-400 mt-1">ส่งข้อความจาก LINE OA เข้ามาเพื่อเริ่มแชท</p>
+            <p className="text-xs text-slate-400 mt-1">
+              {isLiveMode
+                ? 'ส่งข้อความจาก LINE OA เข้ามาเพื่อเริ่มแชทจริง'
+                : 'คลิกปุ่ม (+) เพื่อสร้าง User จำลอง'}
+            </p>
           </div>
         ) : (
           filteredUsers.map((user) => {

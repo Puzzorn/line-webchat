@@ -14,11 +14,16 @@ export async function POST(req: NextRequest) {
     }
 
     const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+    const isLiveConfigured = Boolean(
+      channelAccessToken && channelAccessToken !== 'your_line_channel_access_token_here'
+    );
+    const isMockUser = userId.startsWith('U1234567890');
+
     let isLiveSent = false;
     let errorMessage = '';
 
-    // If channel access token is configured, call LINE Push Message API
-    if (channelAccessToken && !channelAccessToken.includes('your_line')) {
+    // Call LINE Push API if token is configured AND it is not a mock user ID
+    if (isLiveConfigured && !isMockUser) {
       try {
         const lineRes = await fetch('https://api.line.me/v2/bot/message/push', {
           method: 'POST',
@@ -48,6 +53,9 @@ export async function POST(req: NextRequest) {
         errorMessage = err.message || 'Network error calling LINE API';
         console.error('LINE API Call Exception:', err);
       }
+    } else if (isLiveConfigured && isMockUser) {
+      // In Live mode, mock users don't have real LINE user IDs
+      isLiveSent = false;
     }
 
     // Save message in local store
@@ -67,7 +75,9 @@ export async function POST(req: NextRequest) {
       success: true,
       message: newMessage,
       liveSent: isLiveSent,
-      note: !isLiveSent && !channelAccessToken
+      note: isMockUser && isLiveConfigured
+        ? 'Mock user ID cannot receive real LINE push notifications.'
+        : !isLiveConfigured
         ? 'Saved in Webchat DB. Set LINE_CHANNEL_ACCESS_TOKEN to push to real LINE user.'
         : undefined,
     });

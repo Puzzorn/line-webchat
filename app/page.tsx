@@ -10,6 +10,20 @@ export default function WebchatPage() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isLiveMode, setIsLiveMode] = useState(false);
+
+  // Check system config mode (LIVE vs DEMO)
+  const fetchConfig = useCallback(async () => {
+    try {
+      const res = await fetch('/api/config');
+      if (res.ok) {
+        const data = await res.json();
+        setIsLiveMode(data.isLiveMode || false);
+      }
+    } catch (err) {
+      console.error('Error fetching system config:', err);
+    }
+  }, []);
 
   // Fetch all active LINE users
   const fetchUsers = useCallback(async () => {
@@ -18,7 +32,7 @@ export default function WebchatPage() {
       if (res.ok) {
         const data = await res.json();
         setUsers(data.users || []);
-        
+
         // Auto select first user if none selected
         if (!selectedUserId && data.users && data.users.length > 0) {
           setSelectedUserId(data.users[0].userId);
@@ -44,8 +58,9 @@ export default function WebchatPage() {
 
   // Initial load
   useEffect(() => {
+    fetchConfig();
     fetchUsers();
-  }, [fetchUsers]);
+  }, [fetchConfig, fetchUsers]);
 
   // Load messages when selected user changes
   useEffect(() => {
@@ -60,6 +75,7 @@ export default function WebchatPage() {
   // Polling for live updates every 3 seconds
   useEffect(() => {
     const interval = setInterval(() => {
+      fetchConfig();
       fetchUsers();
       if (selectedUserId) {
         fetchMessages(selectedUserId);
@@ -67,7 +83,7 @@ export default function WebchatPage() {
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [selectedUserId, fetchUsers, fetchMessages]);
+  }, [selectedUserId, fetchConfig, fetchUsers, fetchMessages]);
 
   // Send message to LINE User
   const handleSendMessage = async (text: string) => {
@@ -89,7 +105,7 @@ export default function WebchatPage() {
     }
   };
 
-  // Simulate incoming LINE Message (via Webhook)
+  // Simulate incoming LINE Message (via Webhook with internal simulation header)
   const handleSimulateIncomingMessage = async (text: string) => {
     if (!selectedUserId) return;
 
@@ -115,7 +131,10 @@ export default function WebchatPage() {
     try {
       await fetch('/api/line/webhook', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-internal-simulation': 'true',
+        },
         body: JSON.stringify(mockWebhookBody),
       });
 
@@ -153,7 +172,10 @@ export default function WebchatPage() {
     try {
       await fetch('/api/line/webhook', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-internal-simulation': 'true',
+        },
         body: JSON.stringify(mockWebhookBody),
       });
 
@@ -173,6 +195,7 @@ export default function WebchatPage() {
         selectedUserId={selectedUserId}
         onSelectUser={(userId) => setSelectedUserId(userId)}
         onAddMockUser={handleAddMockUser}
+        isLiveMode={isLiveMode}
       />
       <ChatBox
         selectedUser={selectedUser}

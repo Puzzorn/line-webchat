@@ -15,7 +15,7 @@ function verifyLineSignature(bodyText: string, channelSecret: string, signature:
 // Fetch LINE User Profile
 async function getLineUserProfile(userId: string, channelAccessToken: string) {
   try {
-    if (!channelAccessToken || channelAccessToken.includes('your_line')) {
+    if (!channelAccessToken || channelAccessToken === 'your_line_channel_access_token_here') {
       return {
         displayName: `LINE User (${userId.slice(0, 6)})`,
         pictureUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${userId}`,
@@ -48,11 +48,14 @@ export async function POST(req: NextRequest) {
   try {
     const rawBody = await req.text();
     const signature = req.headers.get('x-line-signature') || '';
+    const isInternalSim = req.headers.get('x-internal-simulation') === 'true';
+
     const channelSecret = process.env.LINE_CHANNEL_SECRET || '';
     const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+    const isLiveSecret = Boolean(channelSecret && channelSecret !== 'your_line_channel_secret_here');
 
-    // Verify signature if secret is provided
-    if (channelSecret && channelSecret !== 'your_line_channel_secret_here') {
+    // Verify signature if secret is configured and request is not internal simulation from UI
+    if (isLiveSecret && !isInternalSim) {
       const isValid = verifyLineSignature(rawBody, channelSecret, signature);
       if (!isValid) {
         return NextResponse.json({ error: 'Invalid x-line-signature' }, { status: 401 });
