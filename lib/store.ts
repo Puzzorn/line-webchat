@@ -1,6 +1,6 @@
 import { LineUserProfile, ChatMessage } from './types';
 
-// In-Memory Global Store to preserve data across API requests in Node runtime
+// In-Memory Global Store fallback for local Node runtime
 const globalStore = globalThis as unknown as {
   usersMap: Map<string, LineUserProfile>;
   messagesMap: Map<string, ChatMessage[]>;
@@ -15,7 +15,46 @@ if (!globalStore.messagesMap) {
   globalStore.messagesMap = new Map<string, ChatMessage[]>();
 }
 
-// Check env credentials to determine if Live Mode is active
+// Support for Upstash Redis / Vercel KV REST API Persistence (supporting all Vercel environment variable prefixes)
+const kvUrl =
+  process.env.KV_REST_API_URL ||
+  process.env.UPSTASH_REDIS_REST_URL ||
+  process.env.STORAGE_REST_API_URL ||
+  process.env.STORAGE_URL ||
+  process.env.KV_URL ||
+  '';
+
+const kvToken =
+  process.env.KV_REST_API_TOKEN ||
+  process.env.UPSTASH_REDIS_REST_TOKEN ||
+  process.env.STORAGE_REST_API_TOKEN ||
+  process.env.STORAGE_TOKEN ||
+  process.env.KV_TOKEN ||
+  '';
+
+const hasKV = Boolean(kvUrl && kvToken);
+
+async function kvFetch(command: string, ...args: string[]) {
+  if (!hasKV) return null;
+  try {
+    const url = `${kvUrl.replace(/\/$/, '')}/${command}/${args.map(encodeURIComponent).join('/')}`;
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${kvToken}`,
+      },
+      cache: 'no-store',
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data.result;
+    }
+  } catch (err) {
+    console.error('KV Storage Fetch Error:', err);
+  }
+  return null;
+}
+
+// Seed demo data ONLY if NOT in Live Mode and store has not been initialized yet
 const secret = process.env.LINE_CHANNEL_SECRET || '';
 const token = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
 const isLiveConfigured = Boolean(
@@ -25,7 +64,6 @@ const isLiveConfigured = Boolean(
   token !== 'your_line_channel_access_token_here'
 );
 
-// Seed demo data ONLY if NOT in Live Mode and store has not been initialized yet
 if (!isLiveConfigured && !globalStore.isInitialized) {
   globalStore.isInitialized = true;
   const demoUserId = 'U1234567890abcdef1234567890abcdef';
@@ -54,48 +92,94 @@ if (!isLiveConfigured && !globalStore.isInitialized) {
 }
 
 export const db = {
-  getUsers: (): LineUserProfile[] => {
+  getUsers: async (): Promise<LineUserProfile[]> => {
+    if (hasKV) {
+      const result = await kvFetch('get', 'line_webchat_users');
+      if (result) {
+        try {
+          const users: LineUserProfile[] = typeof result === 'string' ? JSON.parse(result) : result;
+          return users.sort((a, b) => (b.lastMessageTimestamp || 0) - (a.lastMessageTimestamp || 0));
+        } catch (e) {
+          console.error('Parse KV Users error:', e);
+        }
+      }
+    }
     return Array.from(globalStore.usersMap.values()).sort(
       (a, b) => (b.lastMessageTimestamp || 0) - (a.lastMessageTimestamp || 0)
     );
   },
 
-  getUser: (userId: string): LineUserProfile | undefined => {
-    return globalStore.usersMap.get(userId);
+  getUser: async (userId: string): Promise<LineUserProfile | undefined> => {
+    const users = await db.getUsers();
+    return users.find((u) => u.userId === userId);
   },
 
-  saveUser: (user: LineUserProfile): LineUserProfile => {
-    const existing = globalStore.usersMap.get(user.userId);
-    const updated = {
-      ...existing,
+  saveUser: async (user: LineUserProfile): Promise<LineUserProfile> => {
+    const users = await db.getUsers();
+    const existingIndex = users.findIndex((u) => u.userId === user.userId);
+    const updatedUser = {
+      ...(existingIndex >= 0 ? users[existingIndex] : {}),
       ...user,
       lastMessageTimestamp: user.lastMessageTimestamp || Date.now(),
     };
-    globalStore.usersMap.set(user.userId, updated);
-    return updated;
+
+    if (existingIndex >= 0) {
+      users[existingIndex] = updatedUser;
+    } else {
+      users.push(updatedUser);
+    }
+
+    // In-memory update
+    globalStore.usersMap.set(user.userId, updatedUser);
+
+    // KV storage update
+    if (hasKV) {
+      await kvFetch('set', 'line_webchat_users', JSON.stringify(users));
+    }
+
+    return updatedUser;
   },
 
-  getMessages: (userId: string): ChatMessage[] => {
+  getMessages: async (userId: string): Promise<ChatMessage[]> => {
+    if (hasKV) {
+      const result = await kvFetch('get', `line_webchat_msgs_${userId}`);
+      if (result) {
+        try {
+          return typeof result === 'string' ? JSON.parse(result) : result;
+        } catch (e) {
+          console.error('Parse KV Messages error:', e);
+        }
+      }
+    }
     return globalStore.messagesMap.get(userId) || [];
   },
 
-  addMessage: (message: ChatMessage): ChatMessage => {
-    const userMessages = globalStore.messagesMap.get(message.userId) || [];
+  addMessage: async (message: ChatMessage): Promise<ChatMessage> => {
+    const userMessages = await db.getMessages(message.userId);
     userMessages.push(message);
+
+    // In-memory update
     globalStore.messagesMap.set(message.userId, userMessages);
 
-    // Update user's last message
-    const user = globalStore.usersMap.get(message.userId);
-    if (user) {
-      user.lastMessage = message.text;
-      user.lastMessageTimestamp = message.timestamp;
-      globalStore.usersMap.set(message.userId, user);
+    // KV storage update
+    if (hasKV) {
+      await kvFetch('set', `line_webchat_msgs_${message.userId}`, JSON.stringify(userMessages));
     }
+
+    // Update user's last message
+    const existingUser = await db.getUser(message.userId);
+    await db.saveUser({
+      userId: message.userId,
+      displayName: existingUser?.displayName || `LINE User (${message.userId.slice(0, 6)})`,
+      pictureUrl: existingUser?.pictureUrl,
+      lastMessage: message.text,
+      lastMessageTimestamp: message.timestamp,
+    });
 
     return message;
   },
 
-  clearDemoUsers: () => {
+  clearDemoUsers: async () => {
     const demoUserId = 'U1234567890abcdef1234567890abcdef';
     globalStore.usersMap.delete(demoUserId);
     globalStore.messagesMap.delete(demoUserId);

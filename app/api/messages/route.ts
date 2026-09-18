@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 });
     }
 
-    const messages = db.getMessages(userId);
+    const messages = await db.getMessages(userId);
     return NextResponse.json({ messages });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

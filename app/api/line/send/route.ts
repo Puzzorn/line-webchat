@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
       errorDetails: errorMessage || undefined,
     };
 
-    db.addMessage(newMessage);
+    await db.addMessage(newMessage);
 
     return NextResponse.json({
       success: true,

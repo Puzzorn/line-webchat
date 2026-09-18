@@ -3,7 +3,7 @@ import { db } from '@/lib/store';
 
 export async function GET() {
   try {
-    const users = db.getUsers();
+    const users = await db.getUsers();
     return NextResponse.json({ users });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

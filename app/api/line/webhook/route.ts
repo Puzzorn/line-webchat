@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
         if (userId) {
           // Fetch or update user profile
           const profile = await getLineUserProfile(userId, channelAccessToken);
-          db.saveUser({
+          await db.saveUser({
             userId,
             displayName: profile.displayName,
             pictureUrl: profile.pictureUrl,
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
           });
 
           // Save incoming message
-          db.addMessage({
+          await db.addMessage({
             id: event.message.id || `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
             userId,
             sender: 'user',
