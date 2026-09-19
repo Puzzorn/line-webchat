@@ -156,7 +156,14 @@ export const db = {
 
   addMessage: async (message: ChatMessage): Promise<ChatMessage> => {
     const userMessages = await db.getMessages(message.userId);
-    userMessages.push(message);
+
+    // Replace if message ID exists (e.g. resend) or append new
+    const existingIndex = userMessages.findIndex((m) => m.id === message.id);
+    if (existingIndex >= 0) {
+      userMessages[existingIndex] = message;
+    } else {
+      userMessages.push(message);
+    }
 
     // In-memory update
     globalStore.messagesMap.set(message.userId, userMessages);
@@ -177,6 +184,34 @@ export const db = {
     });
 
     return message;
+  },
+
+  deleteMessage: async (userId: string, messageId: string): Promise<boolean> => {
+    const userMessages = await db.getMessages(userId);
+    const filtered = userMessages.filter((m) => m.id !== messageId);
+
+    // In-memory update
+    globalStore.messagesMap.set(userId, filtered);
+
+    // KV storage update
+    if (hasKV) {
+      await kvFetch('set', `line_webchat_msgs_${userId}`, JSON.stringify(filtered));
+    }
+
+    // Update user's last message if needed
+    const lastMsg = filtered[filtered.length - 1];
+    const existingUser = await db.getUser(userId);
+    if (existingUser) {
+      await db.saveUser({
+        userId,
+        displayName: existingUser.displayName,
+        pictureUrl: existingUser.pictureUrl,
+        lastMessage: lastMsg ? lastMsg.text : 'ไม่มีข้อความล่าสุด',
+        lastMessageTimestamp: lastMsg ? lastMsg.timestamp : Date.now(),
+      });
+    }
+
+    return true;
   },
 
   clearDemoUsers: async () => {

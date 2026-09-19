@@ -13,6 +13,7 @@ interface UserListProps {
   isLoadingUsers?: boolean;
   isRefreshingUsers?: boolean;
   isLiveMode?: boolean;
+  oaProfile?: { displayName: string; pictureUrl: string } | null;
   className?: string;
 }
 
@@ -40,6 +41,7 @@ export function UserList({
   isLoadingUsers = false,
   isRefreshingUsers = false,
   isLiveMode = false,
+  oaProfile = null,
   className = '',
 }: UserListProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,19 +63,30 @@ export function UserList({
 
   return (
     <div className={`w-full md:w-80 lg:w-96 bg-white border-r border-slate-200 flex flex-col h-full ${className}`}>
-      {/* Header */}
+      {/* Header with LINE OA Profile & Name */}
       <div className="p-4 border-b border-slate-100 bg-emerald-700 text-white flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 rounded-full bg-white text-emerald-700 font-bold flex items-center justify-center text-sm shadow-sm">
-            LINE
-          </div>
-          <div>
-            <h1 className="font-bold text-base leading-tight">LINE OA Webchat</h1>
+        <div className="flex items-center space-x-2.5 min-w-0">
+          {oaProfile?.pictureUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={oaProfile.pictureUrl}
+              alt={oaProfile.displayName || 'LINE OA'}
+              className="w-9 h-9 rounded-full object-cover border-2 border-white/80 shadow-sm flex-shrink-0"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-white text-emerald-700 font-bold flex items-center justify-center text-sm shadow-sm flex-shrink-0">
+              LINE
+            </div>
+          )}
+          <div className="min-w-0">
+            <h1 className="font-bold text-base leading-tight truncate">
+              {oaProfile?.displayName || 'LINE OA Webchat'}
+            </h1>
             <p className="text-xs text-emerald-100 opacity-90">ผู้ใช้งานทั้งหมด ({users.length})</p>
           </div>
         </div>
 
-        <div className="flex items-center space-x-1">
+        <div className="flex items-center space-x-1 flex-shrink-0">
           {onRefresh && (
             <button
               onClick={onRefresh}

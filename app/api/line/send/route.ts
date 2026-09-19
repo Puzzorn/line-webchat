@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/store';
-import { ChatMessage } from '@/lib/types';
+import { ChatMessage, MessageType } from '@/lib/types';
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, text } = await req.json();
+    const { userId, text, type = 'text', mediaUrl, packageId, stickerId } = await req.json();
 
-    if (!userId || !text) {
+    if (!userId || (!text && !stickerId && !mediaUrl)) {
       return NextResponse.json(
-        { error: 'Missing userId or text parameter' },
+        { error: 'Missing userId, text, or media parameters' },
         { status: 400 }
       );
     }
@@ -22,6 +22,27 @@ export async function POST(req: NextRequest) {
     let isLiveSent = false;
     let errorMessage = '';
 
+    // Prepare LINE Messaging API payload based on message type
+    let lineMessagePayload: any = null;
+    if (type === 'sticker' && packageId && stickerId) {
+      lineMessagePayload = {
+        type: 'sticker',
+        packageId,
+        stickerId,
+      };
+    } else if (type === 'image' && mediaUrl) {
+      lineMessagePayload = {
+        type: 'image',
+        originalContentUrl: mediaUrl,
+        previewImageUrl: mediaUrl,
+      };
+    } else {
+      lineMessagePayload = {
+        type: 'text',
+        text: text || '',
+      };
+    }
+
     // Call LINE Push API if token is configured AND it is not a mock user ID
     if (isLiveConfigured && !isMockUser) {
       try {
@@ -33,12 +54,7 @@ export async function POST(req: NextRequest) {
           },
           body: JSON.stringify({
             to: userId,
-            messages: [
-              {
-                type: 'text',
-                text: text,
-              },
-            ],
+            messages: [lineMessagePayload],
           }),
         });
 
@@ -54,7 +70,6 @@ export async function POST(req: NextRequest) {
         console.error('LINE API Call Exception:', err);
       }
     } else if (isLiveConfigured && isMockUser) {
-      // In Live mode, mock users don't have real LINE user IDs
       isLiveSent = false;
     }
 
@@ -63,7 +78,11 @@ export async function POST(req: NextRequest) {
       id: `msg-webchat-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       userId,
       sender: 'webchat',
-      text,
+      text: text || (type === 'sticker' ? '[สติกเกอร์]' : type === 'image' ? '[รูปภาพ]' : '[ไฟล์แนบ]'),
+      type: type as MessageType,
+      mediaUrl,
+      packageId,
+      stickerId,
       timestamp: Date.now(),
       status: errorMessage ? 'failed' : 'sent',
       errorDetails: errorMessage || undefined,

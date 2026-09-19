@@ -1,14 +1,30 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { LineUserProfile, ChatMessage } from '@/lib/types';
-import { Send, User, MessageCircle, AlertCircle, RefreshCw, Smartphone, ExternalLink, ArrowLeft } from 'lucide-react';
+import { LineUserProfile, ChatMessage, MessageType } from '@/lib/types';
+import {
+  Send,
+  User,
+  MessageCircle,
+  AlertCircle,
+  RefreshCw,
+  Smartphone,
+  ExternalLink,
+  ArrowLeft,
+  Paperclip,
+  Smile,
+  RotateCcw,
+  Trash2,
+  X,
+} from 'lucide-react';
 
 interface ChatBoxProps {
   selectedUser: LineUserProfile | null;
   messages: ChatMessage[];
-  onSendMessage: (text: string) => Promise<void>;
+  onSendMessage: (text: string, type?: MessageType, mediaUrl?: string, packageId?: string, stickerId?: string) => Promise<void>;
   onSimulateIncomingMessage?: (text: string) => Promise<void>;
+  onResendMessage?: (msg: ChatMessage) => Promise<void>;
+  onDeleteMessage?: (msgId: string) => Promise<void>;
   onBack?: () => void;
   onRefresh?: () => void;
   isLoadingMessages?: boolean;
@@ -16,6 +32,18 @@ interface ChatBoxProps {
   isLiveMode?: boolean;
   className?: string;
 }
+
+const POPULAR_STICKERS = [
+  { packageId: '11537', stickerId: '52002734', name: 'Moon Happy' },
+  { packageId: '11537', stickerId: '52002735', name: 'Moon Love' },
+  { packageId: '11537', stickerId: '52002736', name: 'Moon OK' },
+  { packageId: '11537', stickerId: '52002737', name: 'Moon Thumbs Up' },
+  { packageId: '11538', stickerId: '51626494', name: 'Cony Smile' },
+  { packageId: '11538', stickerId: '51626495', name: 'Cony Heart' },
+  { packageId: '1', stickerId: '1', name: 'Brown Smile' },
+  { packageId: '1', stickerId: '2', name: 'Brown Laugh' },
+  { packageId: '1', stickerId: '4', name: 'Brown Like' },
+];
 
 function ChatMessageSkeleton() {
   return (
@@ -40,6 +68,8 @@ export function ChatBox({
   messages,
   onSendMessage,
   onSimulateIncomingMessage,
+  onResendMessage,
+  onDeleteMessage,
   onBack,
   onRefresh,
   isLoadingMessages = false,
@@ -48,10 +78,14 @@ export function ChatBox({
   className = '',
 }: ChatBoxProps) {
   const [inputText, setInputText] = useState('');
-  const [isSending, setIsSending] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [showStickerPicker, setShowStickerPicker] = useState(false);
   const [mockIncomingText, setMockIncomingText] = useState('');
   const [showSimulateInput, setShowSimulateInput] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -61,18 +95,61 @@ export function ChatBox({
     scrollToBottom();
   }, [messages]);
 
-  const handleSend = async (e?: React.FormEvent) => {
+  const handleSendText = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!inputText.trim() || !selectedUser || isSending) return;
 
     const textToSend = inputText;
     setInputText('');
-    setIsSending('webchat');
+    setIsSending(true);
 
     try {
-      await onSendMessage(textToSend);
+      await onSendMessage(textToSend, 'text');
     } finally {
-      setIsSending('');
+      setIsSending(false);
+    }
+  };
+
+  const handleSendSticker = async (packageId: string, stickerId: string) => {
+    if (!selectedUser || isSending) return;
+    setShowStickerPicker(false);
+    setIsSending(true);
+    try {
+      const stickerUrl = `https://stickershop.line-scdn.net/stickershop/v1/sticker/${stickerId}/android/sticker.png`;
+      await onSendMessage('[สติกเกอร์]', 'sticker', stickerUrl, packageId, stickerId);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedUser || isUploading) return;
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const isImage = file.type.startsWith('image/');
+        await onSendMessage(
+          isImage ? '[รูปภาพ]' : `[ไฟล์แนบ] ${file.name}`,
+          isImage ? 'image' : 'file',
+          data.url
+        );
+      }
+    } catch (err) {
+      console.error('Error uploading file:', err);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -227,7 +304,7 @@ export function ChatBox({
 
       {/* Messages List / Skeleton Loading */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {isLoadingMessages && messages.length === 0 ? (
+        {isLoadingMessages ? (
           <ChatMessageSkeleton />
         ) : messages.length === 0 ? (
           <div className="text-center text-slate-400 text-xs py-8">
@@ -236,6 +313,7 @@ export function ChatBox({
         ) : (
           messages.map((msg) => {
             const isUser = msg.sender === 'user';
+            const isFailed = msg.status === 'failed';
 
             return (
               <div
@@ -294,7 +372,9 @@ export function ChatBox({
                     /* Default Text / Link Message Bubble */
                     <div
                       className={`rounded-2xl px-4 py-2 text-sm shadow-sm leading-relaxed break-words ${
-                        isUser
+                        isFailed
+                          ? 'bg-rose-50 text-rose-900 border border-rose-300 rounded-br-none'
+                          : isUser
                           ? 'bg-white text-slate-800 border border-slate-200/80 rounded-bl-none'
                           : 'bg-emerald-600 text-white rounded-br-none'
                       }`}
@@ -303,19 +383,44 @@ export function ChatBox({
                     </div>
                   )}
 
-                  {/* Timestamp & Status */}
+                  {/* Timestamp, Status & Action Controls (Resend / Cancel) */}
                   <div
-                    className={`flex items-center space-x-1 mt-1 px-1 text-[10px] text-slate-400 ${
+                    className={`flex items-center space-x-1.5 mt-1 px-1 text-[10px] text-slate-400 ${
                       isUser ? 'justify-start' : 'justify-end'
                     }`}
                   >
                     <span>{formatTime(msg.timestamp)}</span>
+
                     {!isUser && (
-                      msg.status === 'failed' ? (
-                        <span className="text-rose-500 flex items-center space-x-0.5" title={msg.errorDetails}>
-                          <AlertCircle className="w-3 h-3" />
-                          <span>ล้มเหลว</span>
-                        </span>
+                      isFailed ? (
+                        <div className="flex items-center space-x-2 text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+                          <span className="flex items-center space-x-1" title={msg.errorDetails}>
+                            <AlertCircle className="w-3 h-3 text-rose-500" />
+                            <span className="font-semibold">ล้มเหลว</span>
+                          </span>
+
+                          {onResendMessage && (
+                            <button
+                              onClick={() => onResendMessage(msg)}
+                              className="text-xs text-emerald-700 hover:text-emerald-800 font-bold underline flex items-center space-x-0.5"
+                              title="ลองส่งข้อความนี้อีกครั้ง"
+                            >
+                              <RotateCcw className="w-3 h-3 mr-0.5" />
+                              <span>ส่งใหม่</span>
+                            </button>
+                          )}
+
+                          {onDeleteMessage && (
+                            <button
+                              onClick={() => onDeleteMessage(msg.id)}
+                              className="text-xs text-rose-600 hover:text-rose-800 font-bold underline flex items-center space-x-0.5"
+                              title="ยกเลิกและลบข้อความที่ส่งไม่ผ่าน"
+                            >
+                              <Trash2 className="w-3 h-3 mr-0.5" />
+                              <span>ลบ</span>
+                            </button>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-emerald-600 font-medium ml-1">
                           ส่งแล้ว
@@ -331,20 +436,88 @@ export function ChatBox({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Form */}
+      {/* LINE Sticker Picker Popover */}
+      {showStickerPicker && (
+        <div className="p-3 bg-white border-t border-slate-200 animate-fadeIn">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-slate-700">เลือกสติกเกอร์ LINE</span>
+            <button
+              onClick={() => setShowStickerPicker(false)}
+              className="text-slate-400 hover:text-slate-600 p-0.5 rounded-full"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="grid grid-cols-5 sm:grid-cols-9 gap-2">
+            {POPULAR_STICKERS.map((stk) => (
+              <button
+                key={`${stk.packageId}-${stk.stickerId}`}
+                onClick={() => handleSendSticker(stk.packageId, stk.stickerId)}
+                className="p-1 hover:bg-slate-100 rounded-xl transition-all flex flex-col items-center border border-slate-100"
+                title={stk.name}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`https://stickershop.line-scdn.net/stickershop/v1/sticker/${stk.stickerId}/android/sticker.png`}
+                  alt={stk.name}
+                  className="w-12 h-12 object-contain"
+                />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Input Form with File Attachment & Sticker Selector */}
       <div className="p-3 bg-white border-t border-slate-200">
-        <form onSubmit={handleSend} className="flex items-center space-x-2">
+        <form onSubmit={handleSendText} className="flex items-center space-x-2">
+          {/* File Upload Input (Hidden) */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            className="hidden"
+            accept="image/*,.pdf,.doc,.docx,.txt"
+          />
+
+          {/* Attachment Button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading || !!isSending}
+            title="แนบรูปภาพหรือไฟล์"
+            className="p-2.5 text-slate-500 hover:text-emerald-600 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50"
+          >
+            {isUploading ? <RefreshCw className="w-5 h-5 animate-spin text-emerald-600" /> : <Paperclip className="w-5 h-5" />}
+          </button>
+
+          {/* Sticker Button */}
+          <button
+            type="button"
+            onClick={() => setShowStickerPicker(!showStickerPicker)}
+            disabled={!!isSending}
+            title="ส่งสติกเกอร์ LINE"
+            className={`p-2.5 text-slate-500 hover:text-amber-500 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50 ${
+              showStickerPicker ? 'text-amber-500 bg-amber-50' : ''
+            }`}
+          >
+            <Smile className="w-5 h-5" />
+          </button>
+
+          {/* Text Input */}
           <input
             type="text"
             placeholder={`ส่งข้อความตอบกลับไปยัง ${selectedUser.displayName}...`}
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            disabled={!!isSending}
+            disabled={!!isSending || isUploading}
             className="flex-1 px-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all disabled:opacity-50"
           />
+
+          {/* Send Button */}
           <button
             type="submit"
-            disabled={!inputText.trim() || !!isSending}
+            disabled={!inputText.trim() || !!isSending || isUploading}
             className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-medium text-sm transition-colors flex items-center space-x-1.5 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSending ? (

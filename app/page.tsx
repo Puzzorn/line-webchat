@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { LineUserProfile, ChatMessage } from '@/lib/types';
+import { LineUserProfile, ChatMessage, MessageType } from '@/lib/types';
 import { UserList } from '@/components/user-list';
 import { ChatBox } from '@/components/chat-box';
 
@@ -14,6 +14,7 @@ export default function WebchatPage() {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isRefreshingMessages, setIsRefreshingMessages] = useState(false);
   const [isLiveMode, setIsLiveMode] = useState(false);
+  const [oaProfile, setOaProfile] = useState<{ displayName: string; pictureUrl: string } | null>(null);
 
   // Check system config mode (LIVE vs DEMO)
   const fetchConfig = useCallback(async () => {
@@ -25,6 +26,19 @@ export default function WebchatPage() {
       }
     } catch (err) {
       console.error('Error fetching system config:', err);
+    }
+  }, []);
+
+  // Fetch LINE OA Profile Info
+  const fetchOaProfile = useCallback(async () => {
+    try {
+      const res = await fetch('/api/line/oa-info');
+      if (res.ok) {
+        const data = await res.json();
+        setOaProfile({ displayName: data.displayName, pictureUrl: data.pictureUrl });
+      }
+    } catch (err) {
+      console.error('Error fetching LINE OA profile:', err);
     }
   }, []);
 
@@ -63,6 +77,7 @@ export default function WebchatPage() {
     } catch (err) {
       console.error('Error fetching messages:', err);
     } finally {
+      setIsLoadingMessages(false);
       if (isManualRefresh) setIsRefreshingMessages(false);
     }
   }, []);
@@ -70,16 +85,19 @@ export default function WebchatPage() {
   // Initial load
   useEffect(() => {
     fetchConfig();
+    fetchOaProfile();
     fetchUsers();
-  }, [fetchConfig, fetchUsers]);
+  }, [fetchConfig, fetchOaProfile, fetchUsers]);
 
-  // Load messages when selected user changes
+  // Load messages when selected user changes (with instant skeleton trigger)
   useEffect(() => {
     if (selectedUserId) {
+      setMessages([]); // Instant clear to trigger ChatMessageSkeleton on desktop switch
       setIsLoadingMessages(true);
-      fetchMessages(selectedUserId).finally(() => setIsLoadingMessages(false));
+      fetchMessages(selectedUserId);
     } else {
       setMessages([]);
+      setIsLoadingMessages(false);
     }
   }, [selectedUserId, fetchMessages]);
 
@@ -96,15 +114,21 @@ export default function WebchatPage() {
     return () => clearInterval(interval);
   }, [selectedUserId, fetchConfig, fetchUsers, fetchMessages]);
 
-  // Send message to LINE User
-  const handleSendMessage = async (text: string) => {
+  // Send Rich Message to LINE User (text, sticker, image, file)
+  const handleSendMessage = async (
+    text: string,
+    type: MessageType = 'text',
+    mediaUrl?: string,
+    packageId?: string,
+    stickerId?: string
+  ) => {
     if (!selectedUserId) return;
 
     try {
       const res = await fetch('/api/line/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: selectedUserId, text }),
+        body: JSON.stringify({ userId: selectedUserId, text, type, mediaUrl, packageId, stickerId }),
       });
 
       if (res.ok) {
@@ -113,6 +137,35 @@ export default function WebchatPage() {
       }
     } catch (err) {
       console.error('Error sending message:', err);
+    }
+  };
+
+  // Resend Failed Message
+  const handleResendMessage = async (msg: ChatMessage) => {
+    if (!selectedUserId) return;
+    try {
+      await handleSendMessage(msg.text, msg.type, msg.mediaUrl, msg.packageId, msg.stickerId);
+      // Delete old failed message entry
+      await handleDeleteMessage(msg.id);
+    } catch (err) {
+      console.error('Error resending message:', err);
+    }
+  };
+
+  // Delete Failed Message
+  const handleDeleteMessage = async (msgId: string) => {
+    if (!selectedUserId) return;
+    try {
+      const res = await fetch(`/api/messages?userId=${encodeURIComponent(selectedUserId)}&messageId=${encodeURIComponent(msgId)}`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        await fetchMessages(selectedUserId);
+        await fetchUsers();
+      }
+    } catch (err) {
+      console.error('Error deleting message:', err);
     }
   };
 
@@ -209,6 +262,7 @@ export default function WebchatPage() {
         isLoadingUsers={isLoadingUsers}
         isRefreshingUsers={isRefreshingUsers}
         isLiveMode={isLiveMode}
+        oaProfile={oaProfile}
         className={selectedUserId ? 'hidden md:flex' : 'flex'}
       />
 
@@ -218,6 +272,8 @@ export default function WebchatPage() {
         messages={messages}
         onSendMessage={handleSendMessage}
         onSimulateIncomingMessage={handleSimulateIncomingMessage}
+        onResendMessage={handleResendMessage}
+        onDeleteMessage={handleDeleteMessage}
         onBack={() => setSelectedUserId(null)}
         onRefresh={() => selectedUserId && fetchMessages(selectedUserId, true)}
         isLoadingMessages={isLoadingMessages}
