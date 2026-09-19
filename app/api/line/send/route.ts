@@ -47,6 +47,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    let lineMessageId: string | undefined = undefined;
+    let returnedQuoteToken: string | undefined = undefined;
+
     // Call LINE Push API if token is configured AND it is not a mock user ID
     if (isLiveConfigured && !isMockUser) {
       try {
@@ -64,6 +67,12 @@ export async function POST(req: NextRequest) {
 
         if (lineRes.ok) {
           isLiveSent = true;
+          const lineData = await lineRes.json();
+          const sentMsg = lineData.sentMessages?.[0];
+          if (sentMsg) {
+            lineMessageId = sentMsg.id;
+            returnedQuoteToken = sentMsg.quoteToken;
+          }
         } else {
           const errorData = await lineRes.json();
           errorMessage = errorData.message || 'Failed to send message via LINE API';
@@ -80,6 +89,7 @@ export async function POST(req: NextRequest) {
     // Save message in local store
     const newMessage: ChatMessage = {
       id: `msg-webchat-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      lineMessageId: lineMessageId,
       userId,
       sender: 'webchat',
       text: text || (type === 'sticker' ? '[สติกเกอร์]' : type === 'image' ? '[รูปภาพ]' : '[ไฟล์แนบ]'),
@@ -87,6 +97,7 @@ export async function POST(req: NextRequest) {
       mediaUrl,
       packageId,
       stickerId,
+      quoteToken: returnedQuoteToken,
       replyTo,
       timestamp: Date.now(),
       status: errorMessage ? 'failed' : 'sent',

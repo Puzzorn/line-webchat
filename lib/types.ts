@@ -12,6 +12,7 @@ export type MessageType = 'text' | 'image' | 'sticker' | 'location' | 'file';
 
 export interface ChatMessage {
   id: string;
+  lineMessageId?: string;
   userId: string;
   sender: 'user' | 'webchat';
   text: string;

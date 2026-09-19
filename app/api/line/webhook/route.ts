@@ -113,7 +113,9 @@ export async function POST(req: NextRequest) {
           let replyTo: { id: string; text: string; sender: 'user' | 'webchat'; quoteToken?: string } | undefined = undefined;
           if (msg.quotedMessageId) {
             const existingMsgs = await db.getMessages(userId);
-            const targetMsg = existingMsgs.find((m) => m.id === msg.quotedMessageId);
+            const targetMsg = existingMsgs.find(
+              (m) => m.id === msg.quotedMessageId || m.lineMessageId === msg.quotedMessageId
+            );
             if (targetMsg) {
               replyTo = {
                 id: targetMsg.id,
@@ -138,6 +140,7 @@ export async function POST(req: NextRequest) {
           // Save incoming message
           await db.addMessage({
             id: msg.id || `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            lineMessageId: msg.id,
             userId,
             sender: 'user',
             text: text,
