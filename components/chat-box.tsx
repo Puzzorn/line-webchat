@@ -2,15 +2,37 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { LineUserProfile, ChatMessage } from '@/lib/types';
-import { Send, User, MessageCircle, AlertCircle, RefreshCw, Smartphone, ExternalLink, ImageIcon, MapPin } from 'lucide-react';
+import { Send, User, MessageCircle, AlertCircle, RefreshCw, Smartphone, ExternalLink, ArrowLeft } from 'lucide-react';
 
 interface ChatBoxProps {
   selectedUser: LineUserProfile | null;
   messages: ChatMessage[];
   onSendMessage: (text: string) => Promise<void>;
   onSimulateIncomingMessage?: (text: string) => Promise<void>;
+  onBack?: () => void;
+  onRefresh?: () => void;
   isLoadingMessages?: boolean;
+  isRefreshingMessages?: boolean;
   isLiveMode?: boolean;
+  className?: string;
+}
+
+function ChatMessageSkeleton() {
+  return (
+    <div className="space-y-4 p-2 animate-pulse">
+      <div className="flex items-start space-x-2">
+        <div className="w-7 h-7 rounded-full bg-slate-200 flex-shrink-0" />
+        <div className="w-48 h-12 bg-white rounded-2xl rounded-bl-none border border-slate-200" />
+      </div>
+      <div className="flex items-end justify-end space-x-2">
+        <div className="w-56 h-12 bg-emerald-200/60 rounded-2xl rounded-br-none" />
+      </div>
+      <div className="flex items-start space-x-2">
+        <div className="w-7 h-7 rounded-full bg-slate-200 flex-shrink-0" />
+        <div className="w-64 h-14 bg-white rounded-2xl rounded-bl-none border border-slate-200" />
+      </div>
+    </div>
+  );
 }
 
 export function ChatBox({
@@ -18,8 +40,12 @@ export function ChatBox({
   messages,
   onSendMessage,
   onSimulateIncomingMessage,
-  isLoadingMessages,
+  onBack,
+  onRefresh,
+  isLoadingMessages = false,
+  isRefreshingMessages = false,
   isLiveMode = false,
+  className = '',
 }: ChatBoxProps) {
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState('');
@@ -94,7 +120,7 @@ export function ChatBox({
 
   if (!selectedUser) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-slate-50 text-slate-400">
+      <div className={`flex-1 flex flex-col items-center justify-center p-8 bg-slate-50 text-slate-400 ${className}`}>
         <div className="w-16 h-16 rounded-full bg-slate-200/60 flex items-center justify-center mb-4">
           <MessageCircle className="w-8 h-8 text-slate-400" />
         </div>
@@ -107,10 +133,21 @@ export function ChatBox({
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-slate-100">
+    <div className={`flex-1 flex flex-col h-full bg-slate-100 ${className}`}>
       {/* Header */}
       <div className="p-3.5 bg-white border-b border-slate-200 flex items-center justify-between shadow-sm z-10">
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2.5">
+          {/* Mobile Back Button */}
+          {onBack && (
+            <button
+              onClick={onBack}
+              title="ย้อนกลับไปรายชื่อผู้ใช้"
+              className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 md:hidden transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
+
           <div className="relative">
             {selectedUser.pictureUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -127,17 +164,28 @@ export function ChatBox({
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white absolute bottom-0 right-0" />
           </div>
 
-          <div>
-            <h2 className="font-bold text-sm text-slate-900 leading-tight">
+          <div className="min-w-0">
+            <h2 className="font-bold text-sm text-slate-900 leading-tight truncate">
               {selectedUser.displayName}
             </h2>
-            <p className="text-xs font-mono text-slate-400">
-              User ID: {selectedUser.userId}
+            <p className="text-[11px] font-mono text-slate-400 truncate">
+              ID: {selectedUser.userId}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-1.5">
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              disabled={isRefreshingMessages}
+              title="รีเฟรชประวัติแชท"
+              className="p-2 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshingMessages ? 'animate-spin text-emerald-600' : ''}`} />
+            </button>
+          )}
+
           {!isLiveMode && onSimulateIncomingMessage && (
             <button
               onClick={() => setShowSimulateInput(!showSimulateInput)}
@@ -177,13 +225,10 @@ export function ChatBox({
         </form>
       )}
 
-      {/* Messages List */}
+      {/* Messages List / Skeleton Loading */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {isLoadingMessages && messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-slate-400 text-sm">
-            <RefreshCw className="w-5 h-5 animate-spin mr-2" />
-            กำลังโหลดข้อความ...
-          </div>
+          <ChatMessageSkeleton />
         ) : messages.length === 0 ? (
           <div className="text-center text-slate-400 text-xs py-8">
             ยังไม่มีประวัติการสนทนากับผู้ใช้นี้
@@ -215,7 +260,7 @@ export function ChatBox({
                   </div>
                 )}
 
-                <div className={`max-w-[80%] sm:max-w-[70%] group`}>
+                <div className={`max-w-[85%] sm:max-w-[70%] group`}>
                   {/* Sender label */}
                   <p
                     className={`text-[10px] font-medium text-slate-400 mb-0.5 px-1 ${

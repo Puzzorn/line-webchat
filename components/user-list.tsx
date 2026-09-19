@@ -2,14 +2,33 @@
 
 import { useState } from 'react';
 import { LineUserProfile } from '@/lib/types';
-import { User, Search, PlusCircle, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { User, Search, PlusCircle, CheckCircle2, AlertTriangle, RefreshCw } from 'lucide-react';
 
 interface UserListProps {
   users: LineUserProfile[];
   selectedUserId: string | null;
   onSelectUser: (userId: string) => void;
   onAddMockUser?: () => void;
+  onRefresh?: () => void;
+  isLoadingUsers?: boolean;
+  isRefreshingUsers?: boolean;
   isLiveMode?: boolean;
+  className?: string;
+}
+
+function UserSkeletonItem() {
+  return (
+    <div className="p-3.5 flex items-center space-x-3 animate-pulse">
+      <div className="w-11 h-11 rounded-full bg-slate-200 flex-shrink-0" />
+      <div className="flex-1 space-y-2 min-w-0">
+        <div className="flex justify-between items-center">
+          <div className="h-4 bg-slate-200 rounded w-1/2" />
+          <div className="h-3 bg-slate-200 rounded w-1/5" />
+        </div>
+        <div className="h-3 bg-slate-200 rounded w-3/4" />
+      </div>
+    </div>
+  );
 }
 
 export function UserList({
@@ -17,7 +36,11 @@ export function UserList({
   selectedUserId,
   onSelectUser,
   onAddMockUser,
+  onRefresh,
+  isLoadingUsers = false,
+  isRefreshingUsers = false,
   isLiveMode = false,
+  className = '',
 }: UserListProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -37,7 +60,7 @@ export function UserList({
   };
 
   return (
-    <div className="w-full md:w-80 lg:w-96 bg-white border-r border-slate-200 flex flex-col h-full">
+    <div className={`w-full md:w-80 lg:w-96 bg-white border-r border-slate-200 flex flex-col h-full ${className}`}>
       {/* Header */}
       <div className="p-4 border-b border-slate-100 bg-emerald-700 text-white flex items-center justify-between">
         <div className="flex items-center space-x-2">
@@ -50,15 +73,28 @@ export function UserList({
           </div>
         </div>
 
-        {!isLiveMode && onAddMockUser && (
-          <button
-            onClick={onAddMockUser}
-            title="จำลองสร้าง User ใหม่ (สำหรับทดสอบ)"
-            className="p-1.5 hover:bg-emerald-600 rounded-lg transition-colors text-white"
-          >
-            <PlusCircle className="w-5 h-5" />
-          </button>
-        )}
+        <div className="flex items-center space-x-1">
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              disabled={isRefreshingUsers}
+              title="รีเฟรชรายชื่อผู้ใช้"
+              className="p-1.5 hover:bg-emerald-600 rounded-lg transition-colors text-white disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshingUsers ? 'animate-spin' : ''}`} />
+            </button>
+          )}
+
+          {!isLiveMode && onAddMockUser && (
+            <button
+              onClick={onAddMockUser}
+              title="จำลองสร้าง User ใหม่ (สำหรับทดสอบ)"
+              className="p-1.5 hover:bg-emerald-600 rounded-lg transition-colors text-white"
+            >
+              <PlusCircle className="w-5 h-5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Live Mode vs Demo Mode Status Indicator */}
@@ -91,9 +127,16 @@ export function UserList({
         </div>
       </div>
 
-      {/* Users List */}
+      {/* Users List / Skeleton Loading */}
       <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
-        {filteredUsers.length === 0 ? (
+        {isLoadingUsers ? (
+          <>
+            <UserSkeletonItem />
+            <UserSkeletonItem />
+            <UserSkeletonItem />
+            <UserSkeletonItem />
+          </>
+        ) : filteredUsers.length === 0 ? (
           <div className="p-8 text-center text-slate-400 text-sm">
             <User className="w-10 h-10 mx-auto mb-2 opacity-40" />
             <p>ไม่พบรายชื่อผู้ใช้งาน</p>

@@ -9,7 +9,10 @@ export default function WebchatPage() {
   const [users, setUsers] = useState<LineUserProfile[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [isRefreshingUsers, setIsRefreshingUsers] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isRefreshingMessages, setIsRefreshingMessages] = useState(false);
   const [isLiveMode, setIsLiveMode] = useState(false);
 
   // Check system config mode (LIVE vs DEMO)
@@ -26,25 +29,31 @@ export default function WebchatPage() {
   }, []);
 
   // Fetch all active LINE users
-  const fetchUsers = useCallback(async () => {
+  const fetchUsers = useCallback(async (isManualRefresh = false) => {
+    if (isManualRefresh) setIsRefreshingUsers(true);
     try {
       const res = await fetch('/api/users');
       if (res.ok) {
         const data = await res.json();
-        setUsers(data.users || []);
+        const fetchedUsers: LineUserProfile[] = data.users || [];
+        setUsers(fetchedUsers);
 
-        // Auto select first user if none selected
-        if (!selectedUserId && data.users && data.users.length > 0) {
-          setSelectedUserId(data.users[0].userId);
+        // Auto select first user on desktop view if none selected
+        if (!selectedUserId && fetchedUsers.length > 0 && typeof window !== 'undefined' && window.innerWidth >= 768) {
+          setSelectedUserId(fetchedUsers[0].userId);
         }
       }
     } catch (err) {
       console.error('Error fetching users:', err);
+    } finally {
+      setIsLoadingUsers(false);
+      if (isManualRefresh) setIsRefreshingUsers(false);
     }
   }, [selectedUserId]);
 
   // Fetch message history for selected user
-  const fetchMessages = useCallback(async (userId: string) => {
+  const fetchMessages = useCallback(async (userId: string, isManualRefresh = false) => {
+    if (isManualRefresh) setIsRefreshingMessages(true);
     try {
       const res = await fetch(`/api/messages?userId=${encodeURIComponent(userId)}`);
       if (res.ok) {
@@ -53,6 +62,8 @@ export default function WebchatPage() {
       }
     } catch (err) {
       console.error('Error fetching messages:', err);
+    } finally {
+      if (isManualRefresh) setIsRefreshingMessages(false);
     }
   }, []);
 
@@ -148,8 +159,6 @@ export default function WebchatPage() {
   // Add mock user for instant manual testing
   const handleAddMockUser = async () => {
     const randomId = `U${Math.random().toString(36).substring(2, 10)}${Math.random().toString(36).substring(2, 10)}`;
-    const names = ['คุณนิภา (LINE User)', 'คุณกิตติศักดิ์', 'คุณรัตนา', 'คุณประวิทย์', 'คุณศิริพร'];
-    const randomName = names[Math.floor(Math.random() * names.length)];
 
     const mockWebhookBody = {
       events: [
@@ -190,20 +199,31 @@ export default function WebchatPage() {
 
   return (
     <main className="flex h-screen w-screen overflow-hidden bg-slate-100">
+      {/* UserList Sidebar: Full width on mobile when no user selected, hidden on mobile when chat selected */}
       <UserList
         users={users}
         selectedUserId={selectedUserId}
         onSelectUser={(userId) => setSelectedUserId(userId)}
         onAddMockUser={handleAddMockUser}
+        onRefresh={() => fetchUsers(true)}
+        isLoadingUsers={isLoadingUsers}
+        isRefreshingUsers={isRefreshingUsers}
         isLiveMode={isLiveMode}
+        className={selectedUserId ? 'hidden md:flex' : 'flex'}
       />
+
+      {/* ChatBox Main Area: Full width on mobile when user selected, hidden on mobile when no user selected */}
       <ChatBox
         selectedUser={selectedUser}
         messages={messages}
         onSendMessage={handleSendMessage}
         onSimulateIncomingMessage={handleSimulateIncomingMessage}
+        onBack={() => setSelectedUserId(null)}
+        onRefresh={() => selectedUserId && fetchMessages(selectedUserId, true)}
         isLoadingMessages={isLoadingMessages}
+        isRefreshingMessages={isRefreshingMessages}
         isLiveMode={isLiveMode}
+        className={!selectedUserId ? 'hidden md:flex' : 'flex'}
       />
     </main>
   );
