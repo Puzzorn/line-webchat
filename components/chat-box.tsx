@@ -44,16 +44,59 @@ interface ChatBoxProps {
   className?: string;
 }
 
-const POPULAR_STICKERS = [
-  { packageId: '11537', stickerId: '52002734', name: 'Moon Happy' },
-  { packageId: '11537', stickerId: '52002735', name: 'Moon Love' },
-  { packageId: '11537', stickerId: '52002736', name: 'Moon OK' },
-  { packageId: '11537', stickerId: '52002737', name: 'Moon Thumbs Up' },
-  { packageId: '11538', stickerId: '51626494', name: 'Cony Smile' },
-  { packageId: '11538', stickerId: '51626495', name: 'Cony Heart' },
-  { packageId: '1', stickerId: '1', name: 'Brown Smile' },
-  { packageId: '1', stickerId: '2', name: 'Brown Laugh' },
-  { packageId: '1', stickerId: '4', name: 'Brown Like' },
+interface StickerPack {
+  id: string;
+  name: string;
+  packageId: string;
+  coverStickerId: string;
+  stickers: string[];
+}
+
+const LINE_STICKER_PACKS: StickerPack[] = [
+  {
+    id: 'brown-classic',
+    name: 'Brown Classic',
+    packageId: '1',
+    coverStickerId: '4',
+    stickers: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17'],
+  },
+  {
+    id: 'brown-vol2',
+    name: 'Brown Vol.2',
+    packageId: '2',
+    coverStickerId: '18',
+    stickers: ['18', '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31', '32', '33'],
+  },
+  {
+    id: 'moon-special',
+    name: 'Moon Special',
+    packageId: '11537',
+    coverStickerId: '52002734',
+    stickers: [
+      '52002734', '52002735', '52002736', '52002737', '52002738', '52002739',
+      '52002740', '52002741', '52002742', '52002743', '52002744', '52002745',
+    ],
+  },
+  {
+    id: 'cony-special',
+    name: 'Cony Special',
+    packageId: '11538',
+    coverStickerId: '51626494',
+    stickers: [
+      '51626494', '51626495', '51626496', '51626497', '51626498', '51626499',
+      '51626500', '51626501', '51626502', '51626503', '51626504', '51626505',
+    ],
+  },
+  {
+    id: 'brown-special',
+    name: 'Brown Special',
+    packageId: '11539',
+    coverStickerId: '52114110',
+    stickers: [
+      '52114110', '52114111', '52114112', '52114113', '52114114', '52114115',
+      '52114116', '52114117', '52114118', '52114119', '52114120', '52114121',
+    ],
+  },
 ];
 
 function ChatMessageSkeleton() {
@@ -98,9 +141,29 @@ export function ChatBox({
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [activeMenuMsgId, setActiveMenuMsgId] = useState<string | null>(null);
   const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null);
+  const [selectedPackId, setSelectedPackId] = useState<string>('pack-1');
+  const [stickerPacks, setStickerPacks] = useState<StickerPack[]>(LINE_STICKER_PACKS);
+  const [isLoadingStickers, setIsLoadingStickers] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Dynamically fetch official LINE sticker metadata from LINE CDN API (/api/stickers)
+  useEffect(() => {
+    if (showStickerPicker && stickerPacks === LINE_STICKER_PACKS) {
+      setIsLoadingStickers(true);
+      fetch('/api/stickers')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.packs && data.packs.length > 0) {
+            setStickerPacks(data.packs);
+            setSelectedPackId(data.packs[0].id);
+          }
+        })
+        .catch((err) => console.error('Error fetching dynamic sticker packs:', err))
+        .finally(() => setIsLoadingStickers(false));
+    }
+  }, [showStickerPicker, stickerPacks]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -111,10 +174,16 @@ export function ChatBox({
   }, [messages]);
 
   const handleJumpToMessage = (targetMsgId: string) => {
-    const element = document.getElementById(`msg-item-${targetMsgId}`);
+    // Search for message by ID or lineMessageId to support both internal and LINE message IDs
+    const targetMsg = messages.find(
+      (m) => m.id === targetMsgId || m.lineMessageId === targetMsgId
+    );
+    const matchedId = targetMsg ? targetMsg.id : targetMsgId;
+    const element = document.getElementById(`msg-item-${matchedId}`);
+
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      setHighlightedMsgId(targetMsgId);
+      setHighlightedMsgId(matchedId);
       setTimeout(() => {
         setHighlightedMsgId(null);
       }, 2000);
@@ -418,7 +487,7 @@ export function ChatBox({
                 key={msg.id}
                 id={`msg-item-${msg.id}`}
                 className={`space-y-3 transition-all duration-500 rounded-2xl p-1 ${
-                  highlightedMsgId === msg.id ? 'bg-amber-100/90 ring-4 ring-amber-400/70 scale-[1.01]' : ''
+                  highlightedMsgId === msg.id ? 'bg-amber-100/50 scale-[1.01]' : ''
                 }`}
               >
                 {/* Date Grouping Header */}
@@ -670,32 +739,72 @@ export function ChatBox({
 
       {/* LINE Sticker Picker Popover */}
       {showStickerPicker && (
-        <div className="p-3 bg-white border-t border-slate-200 animate-fadeIn">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-slate-700">เลือกสติกเกอร์ LINE</span>
+        <div className="bg-white border-t border-slate-200 animate-fadeIn shadow-inner">
+          {/* Package Tabs Header */}
+          <div className="flex items-center justify-between border-b border-slate-200/80 px-3 py-1.5 bg-slate-50">
+            <div className="flex items-center space-x-1 overflow-x-auto py-0.5 no-scrollbar">
+              {stickerPacks.map((pack) => (
+                <button
+                  key={pack.id}
+                  onClick={() => setSelectedPackId(pack.id)}
+                  className={`p-1.5 rounded-xl transition-all flex items-center space-x-1.5 flex-shrink-0 cursor-pointer ${
+                    selectedPackId === pack.id
+                      ? 'bg-emerald-100 text-emerald-800 ring-2 ring-emerald-500/50 font-semibold shadow-xs'
+                      : 'hover:bg-slate-200/60 text-slate-600'
+                  }`}
+                  title={pack.name}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`https://stickershop.line-scdn.net/stickershop/v1/sticker/${pack.coverStickerId}/android/sticker.png`}
+                    alt={pack.name}
+                    className="w-6 h-6 object-contain"
+                  />
+                  <span className="text-[11px] hidden sm:inline">{pack.name}</span>
+                </button>
+              ))}
+            </div>
+
             <button
               onClick={() => setShowStickerPicker(false)}
-              className="text-slate-400 hover:text-slate-600 p-0.5 rounded-full"
+              className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200/50 transition-colors flex-shrink-0 ml-2 cursor-pointer"
+              title="ปิดแท็บสติกเกอร์"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
-          <div className="grid grid-cols-5 sm:grid-cols-9 gap-2">
-            {POPULAR_STICKERS.map((stk) => (
-              <button
-                key={`${stk.packageId}-${stk.stickerId}`}
-                onClick={() => handleSendSticker(stk.packageId, stk.stickerId)}
-                className="p-1 hover:bg-slate-100 rounded-xl transition-all flex flex-col items-center border border-slate-100"
-                title={stk.name}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`https://stickershop.line-scdn.net/stickershop/v1/sticker/${stk.stickerId}/android/sticker.png`}
-                  alt={stk.name}
-                  className="w-12 h-12 object-contain"
-                />
-              </button>
-            ))}
+
+          {/* Sticker Grid List */}
+          <div className="p-3 max-h-52 overflow-y-auto">
+            {isLoadingStickers ? (
+              <div className="flex items-center justify-center py-8 text-slate-400 space-x-2 text-xs">
+                <RefreshCw className="w-4 h-4 animate-spin text-emerald-600" />
+                <span>กำลังโหลดสติกเกอร์สดจาก LINE CDN API...</span>
+              </div>
+            ) : (
+              (() => {
+                const currentPack = stickerPacks.find((p) => p.id === selectedPackId) || stickerPacks[0];
+                if (!currentPack) return null;
+                return (
+                  <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-2">
+                    {currentPack.stickers.map((stkId) => (
+                      <button
+                        key={`${currentPack.packageId}-${stkId}`}
+                        onClick={() => handleSendSticker(currentPack.packageId, stkId)}
+                        className="p-1.5 hover:bg-emerald-50 hover:scale-105 rounded-2xl transition-all flex flex-col items-center justify-center border border-slate-100 hover:border-emerald-200 shadow-2xs group cursor-pointer"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={`https://stickershop.line-scdn.net/stickershop/v1/sticker/${stkId}/android/sticker.png`}
+                          alt={`LINE Sticker ${stkId}`}
+                          className="w-14 h-14 object-contain group-hover:scale-110 transition-transform"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()
+            )}
           </div>
         </div>
       )}

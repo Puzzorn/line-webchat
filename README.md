@@ -7,11 +7,18 @@
 ## 🌟 คุณสมบัติระบบ (Features)
 
 - ✅ **ส่ง-รับข้อความกับ LINE OA สองทาง (Two-Way Messaging):** ส่ง Push Message ไปยัง LINE User และรับข้อความจาก LINE Webhook แบบ Real-time
+- ✅ **รองรับระบบตอบกลับข้อความ (Native Quoted Reply & Jump to Message):**
+  * 💬 **LINE Native `quoteToken` Support:** บันทึกและส่ง `quoteToken` ร่วมกับ LINE Push API ทำให้แอป LINE บนมือถือผู้ใช้และ LINE OA Manager แสดงผลกล่อง Quote อ้างอิงอย่างเป็นทางการ
+  * 🎯 **Smooth Scroll & Soft Highlight:** คลิกที่การ์ด Quote ข้อความเพื่อเลื่อน (Smooth Scroll) ไปยังข้อความต้นทาง พร้อมเอฟเฟกต์ไฮไลต์สีเหลืองอำพันนุ่มนวลจางๆ ไร้ขอบ อัตโนมัติ
+  * 🔘 **3-Dot Context Menu:** เมนูตัวเลือก 3 จุด (`...`) ข้างกล่องแชทสำหรับ ตอบกลับ, คัดลอกข้อความ, ลองส่งใหม่ หรือ ลบข้อความ
+- ✅ **จัดกลุ่มประวัติแชทตามวันที่ (Date Grouping Divider):** แสดงป้ายบอกวันที่ ("วันนี้", "เมื่อวานนี้", "19 ก.ย. 2569") แบ่งกลุ่มข้อความอัตโนมัติ
+- ✅ **โปรไฟล์ผู้ใช้งานและหน้าต่างรายละเอียด (User Profile Modal):** คลิกที่รูปหรือชื่อผู้ใช้เพื่อดูข้อมูลโปรไฟล์ (Display Name, User ID, Status Message, เวลาข้อความล่าสุด)
+- ✅ **คลังสติกเกอร์ LINE แบบ Dynamic API (Dynamic LINE Sticker Shop Metadata):**
+  * 🎨 **Dynamic Metadata API (`/api/stickers`):** ดึงข้อมูล Sticker Package Metadata (Title, Package ID, Sticker IDs) แบบ Dynamic สดจาก LINE CDN Direct อัตโนมัติ พร้อมระบบ Fallback และ Loading Indicator
 - ✅ **รองรับข้อความประเภท Rich Content:**
   * 📝 **Text & Clickable Links:** แปลงลิงก์ URL ในข้อความให้กลายเป็นปุ่มกดเปิดลิงก์อัตโนมัติ
-  * 🖼️ **Images:** แสดงพรีวิวรูปภาพที่ผู้ใช้ส่งมาจาก LINE ผ่าน Secure Image Proxy API (`/api/line/image/[messageId]`)
-  * 🎨 **Stickers:** ดึงและแสดงผลสติกเกอร์ LINE จริงจาก LINE CDN
-- ✅ **ซิงค์ข้อมูลบน Serverless (Vercel KV / Upstash Redis):** ข้อมูลผู้ใช้และประวัติแชทซิงค์ตรงกัน 100% ข้ามทุก Vercel Serverless Function Instance
+  * 🖼️ **Images & File Attachments:** แสดงพรีวิวรูปภาพที่ส่งมาจาก LINE ผ่าน Secure Image Proxy API (`/api/line/image/[messageId]`) และแนบไฟล์เอกสาร
+- ✅ **ซิงค์ข้อมูลบน Serverless (Vercel KV / Upstash Redis HTTP POST):** อัปเกรดระบบจัดเก็บข้อมูล KV REST API ใช้ HTTP POST เพื่อรองรับ Payload ขนาดใหญ่ (Base64/Data URI) ข้ามทุก Vercel Serverless Function Instance
 - ✅ **ระบบตรวจจับโหมดอัตโนมัติ (Live vs Demo Mode):**
   * 🟢 **LIVE MODE:** แสดงสถานะเชื่อมต่อ LINE API เมื่อตั้งค่า `.env` ถูกต้อง ซ่อนปุ่มจำลองให้อัตโนมัติเพื่อป้องกันความสับสน
   * 🟡 **DEMO MODE:** โหมดจำลองสำหรับทดสอบ UI ได้ทันทีโดยไม่ต้องใส่ Credentials
@@ -33,6 +40,7 @@ line-webchat/
 │   │   │   ├── send/route.ts     # Push API to send message to LINE User
 │   │   │   └── webhook/route.ts  # Webhook Endpoint receiving LINE Events
 │   │   ├── messages/route.ts     # Fetch chat history per User ID
+│   │   ├── stickers/route.ts     # Dynamic LINE Sticker Metadata API
 │   │   └── users/route.ts        # Fetch all active LINE Users
 │   ├── line/webhook/route.ts     # Route Alias for /line/webhook
 │   ├── globals.css               # Global Tailwind CSS Styles
@@ -47,7 +55,8 @@ line-webchat/
 ├── docs/                         # Architecture Documentation & ADRs
 │   └── adr/
 │       ├── ADR-0001-line-webchat-architecture.md
-│       └── ADR-0002-rich-messages-and-kv-storage.md
+│       ├── ADR-0002-rich-messages-and-kv-storage.md
+│       └── ADR-0003-line-native-quote-token-and-chatbox-features.md
 ├── CONTEXT.md                    # Domain Vocabulary & Rules
 ├── next.config.mjs               # Next.js Config & URL Rewrites
 ├── package.json
