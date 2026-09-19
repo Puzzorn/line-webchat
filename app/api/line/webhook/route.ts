@@ -106,6 +106,20 @@ export async function POST(req: NextRequest) {
             text = `📎 ${msg.fileName || 'ไฟล์แนบ'}`;
           }
 
+          // Check for quoted message (reply) from LINE
+          let replyTo: { id: string; text: string; sender: 'user' | 'webchat' } | undefined = undefined;
+          if (msg.quotedMessageId) {
+            const existingMsgs = await db.getMessages(userId);
+            const targetMsg = existingMsgs.find((m) => m.id === msg.quotedMessageId);
+            if (targetMsg) {
+              replyTo = {
+                id: targetMsg.id,
+                text: targetMsg.text,
+                sender: targetMsg.sender,
+              };
+            }
+          }
+
           // Fetch or update user profile
           const profile = await getLineUserProfile(userId, channelAccessToken);
           await db.saveUser({
@@ -127,6 +141,7 @@ export async function POST(req: NextRequest) {
             mediaUrl: mediaUrl,
             packageId: packageId,
             stickerId: stickerId,
+            replyTo: replyTo,
             timestamp: event.timestamp || Date.now(),
             status: 'sent',
           });

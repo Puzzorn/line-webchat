@@ -37,9 +37,14 @@ export async function POST(req: NextRequest) {
         previewImageUrl: mediaUrl,
       };
     } else {
+      let sendText = text || '';
+      if (replyTo?.text) {
+        const targetAuthor = replyTo.sender === 'user' ? 'LINE User' : 'Admin';
+        sendText = `> [ตอบกลับ ${targetAuthor}]: ${replyTo.text}\n${sendText}`;
+      }
       lineMessagePayload = {
         type: 'text',
-        text: text || '',
+        text: sendText,
       };
     }
 

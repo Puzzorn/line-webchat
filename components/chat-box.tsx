@@ -18,6 +18,8 @@ import {
   X,
   Reply,
   Info,
+  MoreHorizontal,
+  Copy,
 } from 'lucide-react';
 
 interface ChatBoxProps {
@@ -94,6 +96,7 @@ export function ChatBox({
   const [showSimulateInput, setShowSimulateInput] = useState(false);
   const [replyingMessage, setReplyingMessage] = useState<ChatMessage | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [activeMenuMsgId, setActiveMenuMsgId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -105,6 +108,17 @@ export function ChatBox({
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Click outside to close message options 3-dot dropdown menu
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (activeMenuMsgId && !(e.target as HTMLElement).closest('.msg-menu-container')) {
+        setActiveMenuMsgId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [activeMenuMsgId]);
 
   const formatDateHeader = (timestamp: number): string => {
     const date = new Date(timestamp);
@@ -429,74 +443,139 @@ export function ChatBox({
                       {isUser ? selectedUser.displayName : 'Webchat Admin'}
                     </p>
 
-                    {/* Quoted Reply Message (If message is replying to another) */}
-                    {msg.replyTo && (
-                      <div
-                        className={`mb-1.5 p-2 rounded-xl text-xs border-l-4 shadow-xs ${
-                          isUser
-                            ? 'bg-slate-200/70 border-emerald-500 text-slate-700'
-                            : 'bg-emerald-700/80 border-white text-emerald-50'
-                        }`}
-                      >
-                        <p className="font-bold text-[10px] opacity-90">
-                          ตอบกลับ {msg.replyTo.sender === 'user' ? selectedUser.displayName : 'Webchat Admin'}
-                        </p>
-                        <p className="truncate text-[11px] opacity-90">{msg.replyTo.text}</p>
-                      </div>
-                    )}
+                    <div className={`flex items-center space-x-1 relative ${isUser ? 'flex-row' : 'flex-row-reverse space-x-reverse'}`}>
+                      {/* Message Content Container */}
+                      <div className="min-w-0">
+                        {/* Quoted Reply Message (If message is replying to another) */}
+                        {msg.replyTo && (
+                          <div
+                            className={`mb-1.5 p-2 rounded-xl text-xs border-l-4 shadow-xs ${
+                              isUser
+                                ? 'bg-slate-200/80 border-emerald-500 text-slate-700'
+                                : 'bg-emerald-800/40 border-emerald-200 text-emerald-50'
+                            }`}
+                          >
+                            <p className="font-bold text-[10px] tracking-wide opacity-90 mb-0.5">
+                              {msg.replyTo.sender === 'user' ? selectedUser.displayName : 'Webchat Admin'}
+                            </p>
+                            <p className="truncate text-[11px] opacity-90">{msg.replyTo.text}</p>
+                          </div>
+                        )}
 
-                    {/* Rich Message Body Rendering */}
-                    {msg.type === 'sticker' && msg.mediaUrl ? (
-                      <div className="p-1">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={msg.mediaUrl}
-                          alt="LINE Sticker"
-                          className="w-28 h-28 object-contain drop-shadow-sm hover:scale-105 transition-transform"
-                        />
+                        {/* Rich Message Body Rendering */}
+                        {msg.type === 'sticker' && msg.mediaUrl ? (
+                          <div className="p-1">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={msg.mediaUrl}
+                              alt="LINE Sticker"
+                              className="w-28 h-28 object-contain drop-shadow-sm hover:scale-105 transition-transform"
+                            />
+                          </div>
+                        ) : msg.type === 'image' && msg.mediaUrl ? (
+                          <div className="rounded-2xl overflow-hidden max-w-xs shadow-sm border border-slate-200 bg-black/5">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={msg.mediaUrl}
+                              alt="LINE Attachment"
+                              className="w-full h-auto max-h-64 object-cover cursor-pointer hover:opacity-95 transition-opacity"
+                              onClick={() => window.open(msg.mediaUrl, '_blank')}
+                            />
+                          </div>
+                        ) : (
+                          /* Default Text / Link Message Bubble */
+                          <div
+                            className={`rounded-2xl px-4 py-2 text-sm shadow-sm leading-relaxed break-words ${
+                              isFailed
+                                ? 'bg-rose-50 text-rose-900 border border-rose-300 rounded-br-none'
+                                : isUser
+                                ? 'bg-white text-slate-800 border border-slate-200/80 rounded-bl-none'
+                                : 'bg-emerald-600 text-white rounded-br-none'
+                            }`}
+                          >
+                            {renderFormattedText(msg.text)}
+                          </div>
+                        )}
                       </div>
-                    ) : msg.type === 'image' && msg.mediaUrl ? (
-                      <div className="rounded-2xl overflow-hidden max-w-xs shadow-sm border border-slate-200 bg-black/5">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={msg.mediaUrl}
-                          alt="LINE Attachment"
-                          className="w-full h-auto max-h-64 object-cover cursor-pointer hover:opacity-95 transition-opacity"
-                          onClick={() => window.open(msg.mediaUrl, '_blank')}
-                        />
-                      </div>
-                    ) : (
-                      /* Default Text / Link Message Bubble */
-                      <div
-                        className={`rounded-2xl px-4 py-2 text-sm shadow-sm leading-relaxed break-words ${
-                          isFailed
-                            ? 'bg-rose-50 text-rose-900 border border-rose-300 rounded-br-none'
-                            : isUser
-                            ? 'bg-white text-slate-800 border border-slate-200/80 rounded-bl-none'
-                            : 'bg-emerald-600 text-white rounded-br-none'
-                        }`}
-                      >
-                        {renderFormattedText(msg.text)}
-                      </div>
-                    )}
 
-                    {/* Timestamp, Status & Action Controls (Reply / Resend / Cancel) */}
+                      {/* 3-Dot Options Action Button & Context Menu */}
+                      <div className="relative msg-menu-container flex-shrink-0 self-center">
+                        <button
+                          onClick={() => setActiveMenuMsgId(activeMenuMsgId === msg.id ? null : msg.id)}
+                          className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 rounded-full transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
+                          title="เมนูตัวเลือก"
+                        >
+                          <MoreHorizontal className="w-4 h-4" />
+                        </button>
+
+                        {/* Dropdown Menu */}
+                        {activeMenuMsgId === msg.id && (
+                          <div
+                            className={`absolute z-30 w-36 bg-white rounded-xl shadow-xl border border-slate-200/80 py-1 text-xs animate-scaleUp ${
+                              isUser ? 'left-0 bottom-full mb-1' : 'right-0 bottom-full mb-1'
+                            }`}
+                          >
+                            <button
+                              onClick={() => {
+                                setReplyingMessage(msg);
+                                setActiveMenuMsgId(null);
+                              }}
+                              className="w-full px-3 py-2 text-left text-slate-700 hover:bg-slate-100 flex items-center space-x-2 font-medium transition-colors"
+                            >
+                              <Reply className="w-3.5 h-3.5 text-slate-500" />
+                              <span>ตอบกลับ</span>
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                if (navigator.clipboard) {
+                                  navigator.clipboard.writeText(msg.text || '');
+                                }
+                                setActiveMenuMsgId(null);
+                              }}
+                              className="w-full px-3 py-2 text-left text-slate-700 hover:bg-slate-100 flex items-center space-x-2 font-medium transition-colors"
+                            >
+                              <Copy className="w-3.5 h-3.5 text-slate-500" />
+                              <span>คัดลอกข้อความ</span>
+                            </button>
+
+                            {isFailed && onResendMessage && (
+                              <button
+                                onClick={() => {
+                                  onResendMessage(msg);
+                                  setActiveMenuMsgId(null);
+                                }}
+                                className="w-full px-3 py-2 text-left text-emerald-700 hover:bg-emerald-50 flex items-center space-x-2 font-medium transition-colors border-t border-slate-100 mt-1"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>ลองส่งใหม่</span>
+                              </button>
+                            )}
+
+                            {isFailed && onDeleteMessage && (
+                              <button
+                                onClick={() => {
+                                  onDeleteMessage(msg.id);
+                                  setActiveMenuMsgId(null);
+                                }}
+                                className="w-full px-3 py-2 text-left text-rose-600 hover:bg-rose-50 flex items-center space-x-2 font-medium transition-colors border-t border-slate-100 mt-1"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                                <span>ลบข้อความ</span>
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Timestamp & Status Controls */}
                     <div
                       className={`flex items-center space-x-1.5 mt-1 px-1 text-[10px] text-slate-400 ${
                         isUser ? 'justify-start' : 'justify-end'
                       }`}
                     >
                       <span>{formatTime(msg.timestamp)}</span>
-
-                      {/* Reply button for both user & admin messages */}
-                      <button
-                        onClick={() => setReplyingMessage(msg)}
-                        className="text-[10px] text-slate-400 hover:text-emerald-600 font-medium flex items-center space-x-0.5 ml-1 transition-colors"
-                        title="ตอบกลับข้อความนี้"
-                      >
-                        <Reply className="w-3 h-3 mr-0.5" />
-                        <span>ตอบกลับ</span>
-                      </button>
 
                       {!isUser && (
                         isFailed ? (
