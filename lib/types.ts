@@ -21,6 +21,7 @@ export interface ChatMessage {
   packageId?: string;
   stickerId?: string;
   quoteToken?: string;
+  markAsReadToken?: string;
   replyTo?: {
     id: string;
     text: string;

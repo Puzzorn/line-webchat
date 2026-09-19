@@ -18,6 +18,8 @@
 - ✅ **รองรับข้อความประเภท Rich Content:**
   * 📝 **Text & Clickable Links:** แปลงลิงก์ URL ในข้อความให้กลายเป็นปุ่มกดเปิดลิงก์อัตโนมัติ
   * 🖼️ **Images & File Attachments:** แสดงพรีวิวรูปภาพที่ส่งมาจาก LINE ผ่าน Secure Image Proxy API (`/api/line/image/[messageId]`) และแนบไฟล์เอกสาร
+- ✅ **รองรับระบบทำเครื่องหมายอ่านแล้ว (LINE Official Mark as Read API):**
+  * 👁️ **`markAsReadToken` Integration:** สกัดและบันทึก `markAsReadToken` จากข้อความเข้าทาง Webhook และส่งยิง `POST /v2/bot/chat/markAsRead` ไปยัง LINE API อัตโนมัติเมื่อแอดมินเปิดอ่านแชทบน Webchat
 - ✅ **ซิงค์ข้อมูลบน Serverless (Vercel KV / Upstash Redis HTTP POST):** อัปเกรดระบบจัดเก็บข้อมูล KV REST API ใช้ HTTP POST เพื่อรองรับ Payload ขนาดใหญ่ (Base64/Data URI) ข้ามทุก Vercel Serverless Function Instance
 - ✅ **ระบบตรวจจับโหมดอัตโนมัติ (Live vs Demo Mode):**
   * 🟢 **LIVE MODE:** แสดงสถานะเชื่อมต่อ LINE API เมื่อตั้งค่า `.env` ถูกต้อง ซ่อนปุ่มจำลองให้อัตโนมัติเพื่อป้องกันความสับสน
@@ -37,6 +39,7 @@ line-webchat/
 │   │   ├── config/route.ts       # Check System Mode (Live vs Demo)
 │   │   ├── line/
 │   │   │   ├── image/[messageId]/# Secure Proxy API for LINE Image Content
+│   │   │   ├── mark-as-read/     # Official LINE Mark as Read API Route
 │   │   │   ├── send/route.ts     # Push API to send message to LINE User
 │   │   │   └── webhook/route.ts  # Webhook Endpoint receiving LINE Events
 │   │   ├── messages/route.ts     # Fetch chat history per User ID

@@ -26,6 +26,11 @@
 5. **KV REST API Payload Size Optimization:**
    - ปรับปรุง `kvFetch` ใน `lib/store.ts` ให้ส่งผ่าน HTTP `POST` ด้วย JSON Array Body (`["SET", key, value]`) เพื่อรองรับการบันทึกภาพ Base64/Data URI ขนาดใหญ่ ป้องกันปัญหา URI Size Limit (HTTP 414/413)
 
+6. **LINE Mark as Read API Integration (`markAsReadToken`):**
+   - **Webhook Extraction:** สกัด `msg.markAsReadToken` จาก LINE Message Webhook Event และจัดเก็บลงใน `ChatMessage`
+   - **Mark as Read API Endpoint (`/api/line/mark-as-read`):** ยิง `POST https://api.line.me/v2/bot/chat/markAsRead` แนบ `markAsReadToken` เพื่อทำเครื่องหมายว่าแอดมินอ่านข้อความของผู้ใช้แล้วบนระบบ LINE OA Manager
+   - **Auto Trigger:** สั่งงานยิง `markAsRead` อัตโนมัติเมื่อแอดมินเปิดแชทค้างไว้หรือกดสลับเลือกผู้ใช้นั้นๆ ใน Webchat UI
+
 ## Consequences
 
 - **Positive:** รองรับการแสดงผล Quoted Reply ตรงตามมาตรฐาน LINE API 100% ทั้งฝั่ง Webchat และแอป LINE บนมือถือ, เพิ่มมิติความเสถียรและความสวยงามของ UI

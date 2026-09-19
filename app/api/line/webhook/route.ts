@@ -106,8 +106,9 @@ export async function POST(req: NextRequest) {
             text = `📎 ${msg.fileName || 'ไฟล์แนบ'}`;
           }
 
-          // Extract LINE Messaging API Quote Token
+          // Extract LINE Messaging API Quote Token & MarkAsRead Token
           const incomingQuoteToken = msg.quoteToken as string | undefined;
+          const incomingMarkAsReadToken = msg.markAsReadToken as string | undefined;
 
           // Check for quoted message (reply) from LINE
           let replyTo: { id: string; text: string; sender: 'user' | 'webchat'; quoteToken?: string } | undefined = undefined;
@@ -149,6 +150,7 @@ export async function POST(req: NextRequest) {
             packageId: packageId,
             stickerId: stickerId,
             quoteToken: incomingQuoteToken,
+            markAsReadToken: incomingMarkAsReadToken,
             replyTo: replyTo,
             timestamp: event.timestamp || Date.now(),
             status: 'sent',

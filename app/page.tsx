@@ -121,7 +121,7 @@ export default function WebchatPage() {
     mediaUrl?: string,
     packageId?: string,
     stickerId?: string,
-    replyTo?: { id: string; text: string; sender: 'user' | 'webchat' }
+    replyTo?: { id: string; text: string; sender: 'user' | 'webchat'; quoteToken?: string }
   ) => {
     if (!selectedUserId) return;
 

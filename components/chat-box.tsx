@@ -31,7 +31,7 @@ interface ChatBoxProps {
     mediaUrl?: string,
     packageId?: string,
     stickerId?: string,
-    replyTo?: { id: string; text: string; sender: 'user' | 'webchat' }
+    replyTo?: { id: string; text: string; sender: 'user' | 'webchat'; quoteToken?: string }
   ) => Promise<void>;
   onSimulateIncomingMessage?: (text: string) => Promise<void>;
   onResendMessage?: (msg: ChatMessage) => Promise<void>;
@@ -148,6 +148,32 @@ export function ChatBox({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const lastMarkedReadTokenRef = useRef<string | null>(null);
+
+  // Automatically trigger LINE Mark as Read API when user chat is active and new messages arrive
+  useEffect(() => {
+    if (selectedUser?.userId && messages.length > 0) {
+      const latestUserMsgWithToken = [...messages]
+        .reverse()
+        .find((m) => m.sender === 'user' && m.markAsReadToken);
+
+      if (
+        latestUserMsgWithToken?.markAsReadToken &&
+        lastMarkedReadTokenRef.current !== latestUserMsgWithToken.markAsReadToken
+      ) {
+        lastMarkedReadTokenRef.current = latestUserMsgWithToken.markAsReadToken;
+        fetch('/api/line/mark-as-read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: selectedUser.userId,
+            markAsReadToken: latestUserMsgWithToken.markAsReadToken,
+          }),
+        }).catch((err) => console.error('Error triggering markAsRead:', err));
+      }
+    }
+  }, [selectedUser?.userId, messages]);
+
   // Dynamically fetch official LINE sticker metadata from LINE CDN API (/api/stickers)
   useEffect(() => {
     if (showStickerPicker && stickerPacks === LINE_STICKER_PACKS) {
@@ -232,7 +258,12 @@ export function ChatBox({
 
     const textToSend = inputText;
     const replyPayload = replyingMessage
-      ? { id: replyingMessage.id, text: replyingMessage.text || replyingMessage.type || '', sender: replyingMessage.sender }
+      ? {
+          id: replyingMessage.id,
+          text: replyingMessage.text || replyingMessage.type || '',
+          sender: replyingMessage.sender,
+          quoteToken: replyingMessage.quoteToken,
+        }
       : undefined;
 
     setInputText('');
@@ -249,7 +280,12 @@ export function ChatBox({
   const handleSendSticker = async (packageId: string, stickerId: string) => {
     if (!selectedUser || isSending) return;
     const replyPayload = replyingMessage
-      ? { id: replyingMessage.id, text: replyingMessage.text || replyingMessage.type || '', sender: replyingMessage.sender }
+      ? {
+          id: replyingMessage.id,
+          text: replyingMessage.text || replyingMessage.type || '',
+          sender: replyingMessage.sender,
+          quoteToken: replyingMessage.quoteToken,
+        }
       : undefined;
 
     setShowStickerPicker(false);
@@ -268,7 +304,12 @@ export function ChatBox({
     if (!file || !selectedUser || isUploading) return;
 
     const replyPayload = replyingMessage
-      ? { id: replyingMessage.id, text: replyingMessage.text || replyingMessage.type || '', sender: replyingMessage.sender }
+      ? {
+          id: replyingMessage.id,
+          text: replyingMessage.text || replyingMessage.type || '',
+          sender: replyingMessage.sender,
+          quoteToken: replyingMessage.quoteToken,
+        }
       : undefined;
 
     setIsUploading(true);
