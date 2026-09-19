@@ -186,7 +186,6 @@ export function UserList({
                       {user.displayName.slice(0, 1).toUpperCase()}
                     </div>
                   )}
-                  <span className="w-3 h-3 rounded-full bg-emerald-500 border-2 border-white absolute bottom-0 right-0 shadow-sm" />
                 </div>
 
                 {/* User Info */}

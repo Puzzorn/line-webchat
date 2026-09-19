@@ -19,6 +19,11 @@ export interface ChatMessage {
   mediaUrl?: string;
   packageId?: string;
   stickerId?: string;
+  replyTo?: {
+    id: string;
+    text: string;
+    sender: 'user' | 'webchat';
+  };
   timestamp: number;
   status?: 'sending' | 'sent' | 'failed' | 'read';
   errorDetails?: string;

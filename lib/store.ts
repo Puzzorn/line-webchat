@@ -37,15 +37,32 @@ const hasKV = Boolean(kvUrl && kvToken);
 async function kvFetch(command: string, ...args: string[]) {
   if (!hasKV) return null;
   try {
-    const url = `${kvUrl.replace(/\/$/, '')}/${command}/${args.map(encodeURIComponent).join('/')}`;
-    const res = await fetch(url, {
+    const baseUrl = kvUrl.replace(/\/$/, '');
+    const res = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${kvToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify([command.toUpperCase(), ...args]),
+      cache: 'no-store',
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      return data.result;
+    }
+
+    // Fallback to path-based GET if endpoint expects URI parameters
+    const getUrl = `${baseUrl}/${command}/${args.map(encodeURIComponent).join('/')}`;
+    const getRes = await fetch(getUrl, {
       headers: {
         Authorization: `Bearer ${kvToken}`,
       },
       cache: 'no-store',
     });
-    if (res.ok) {
-      const data = await res.json();
+    if (getRes.ok) {
+      const data = await getRes.json();
       return data.result;
     }
   } catch (err) {

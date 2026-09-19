@@ -120,7 +120,8 @@ export default function WebchatPage() {
     type: MessageType = 'text',
     mediaUrl?: string,
     packageId?: string,
-    stickerId?: string
+    stickerId?: string,
+    replyTo?: { id: string; text: string; sender: 'user' | 'webchat' }
   ) => {
     if (!selectedUserId) return;
 
@@ -128,7 +129,7 @@ export default function WebchatPage() {
       const res = await fetch('/api/line/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: selectedUserId, text, type, mediaUrl, packageId, stickerId }),
+        body: JSON.stringify({ userId: selectedUserId, text, type, mediaUrl, packageId, stickerId, replyTo }),
       });
 
       if (res.ok) {

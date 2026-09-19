@@ -4,7 +4,7 @@ import { ChatMessage, MessageType } from '@/lib/types';
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, text, type = 'text', mediaUrl, packageId, stickerId } = await req.json();
+    const { userId, text, type = 'text', mediaUrl, packageId, stickerId, replyTo } = await req.json();
 
     if (!userId || (!text && !stickerId && !mediaUrl)) {
       return NextResponse.json(
@@ -83,6 +83,7 @@ export async function POST(req: NextRequest) {
       mediaUrl,
       packageId,
       stickerId,
+      replyTo,
       timestamp: Date.now(),
       status: errorMessage ? 'failed' : 'sent',
       errorDetails: errorMessage || undefined,
