@@ -106,8 +106,11 @@ export async function POST(req: NextRequest) {
             text = `📎 ${msg.fileName || 'ไฟล์แนบ'}`;
           }
 
+          // Extract LINE Messaging API Quote Token
+          const incomingQuoteToken = msg.quoteToken as string | undefined;
+
           // Check for quoted message (reply) from LINE
-          let replyTo: { id: string; text: string; sender: 'user' | 'webchat' } | undefined = undefined;
+          let replyTo: { id: string; text: string; sender: 'user' | 'webchat'; quoteToken?: string } | undefined = undefined;
           if (msg.quotedMessageId) {
             const existingMsgs = await db.getMessages(userId);
             const targetMsg = existingMsgs.find((m) => m.id === msg.quotedMessageId);
@@ -116,6 +119,7 @@ export async function POST(req: NextRequest) {
                 id: targetMsg.id,
                 text: targetMsg.text,
                 sender: targetMsg.sender,
+                quoteToken: targetMsg.quoteToken,
               };
             }
           }
@@ -141,6 +145,7 @@ export async function POST(req: NextRequest) {
             mediaUrl: mediaUrl,
             packageId: packageId,
             stickerId: stickerId,
+            quoteToken: incomingQuoteToken,
             replyTo: replyTo,
             timestamp: event.timestamp || Date.now(),
             status: 'sent',

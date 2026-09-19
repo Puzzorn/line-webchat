@@ -97,6 +97,7 @@ export function ChatBox({
   const [replyingMessage, setReplyingMessage] = useState<ChatMessage | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [activeMenuMsgId, setActiveMenuMsgId] = useState<string | null>(null);
+  const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -108,6 +109,17 @@ export function ChatBox({
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const handleJumpToMessage = (targetMsgId: string) => {
+    const element = document.getElementById(`msg-item-${targetMsgId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightedMsgId(targetMsgId);
+      setTimeout(() => {
+        setHighlightedMsgId(null);
+      }, 2000);
+    }
+  };
 
   // Click outside to close message options 3-dot dropdown menu
   useEffect(() => {
@@ -402,7 +414,13 @@ export function ChatBox({
             const showDateHeader = index === 0 || msgDateKey !== prevMsgDateKey;
 
             return (
-              <div key={msg.id} className="space-y-3">
+              <div
+                key={msg.id}
+                id={`msg-item-${msg.id}`}
+                className={`space-y-3 transition-all duration-500 rounded-2xl p-1 ${
+                  highlightedMsgId === msg.id ? 'bg-amber-100/90 ring-4 ring-amber-400/70 scale-[1.01]' : ''
+                }`}
+              >
                 {/* Date Grouping Header */}
                 {showDateHeader && (
                   <div className="my-3 flex items-center justify-center">
@@ -446,20 +464,23 @@ export function ChatBox({
                     <div className={`flex items-center space-x-1 relative ${isUser ? 'flex-row' : 'flex-row-reverse space-x-reverse'}`}>
                       {/* Message Content Container */}
                       <div className="min-w-0">
-                        {/* Quoted Reply Message (If message is replying to another) */}
+                        {/* Quoted Reply Message (Clickable to jump to original message) */}
                         {msg.replyTo && (
-                          <div
-                            className={`mb-1.5 p-2 rounded-xl text-xs border-l-4 shadow-xs ${
+                          <button
+                            type="button"
+                            onClick={() => msg.replyTo?.id && handleJumpToMessage(msg.replyTo.id)}
+                            title="คลิกเพื่อไปยังข้อความต้นทาง"
+                            className={`mb-1.5 p-2 rounded-xl text-xs border-l-4 shadow-xs text-left w-full cursor-pointer hover:opacity-90 transition-all ${
                               isUser
-                                ? 'bg-slate-200/80 border-emerald-500 text-slate-700'
-                                : 'bg-emerald-800/40 border-emerald-200 text-emerald-50'
+                                ? 'bg-slate-200/80 border-emerald-500 text-slate-700 hover:bg-slate-300/80'
+                                : 'bg-emerald-800/40 border-emerald-200 text-emerald-50 hover:bg-emerald-800/60'
                             }`}
                           >
                             <p className="font-bold text-[10px] tracking-wide opacity-90 mb-0.5">
                               {msg.replyTo.sender === 'user' ? selectedUser.displayName : 'Webchat Admin'}
                             </p>
                             <p className="truncate text-[11px] opacity-90">{msg.replyTo.text}</p>
-                          </div>
+                          </button>
                         )}
 
                         {/* Rich Message Body Rendering */}

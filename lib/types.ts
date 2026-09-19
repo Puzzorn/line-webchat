@@ -19,10 +19,12 @@ export interface ChatMessage {
   mediaUrl?: string;
   packageId?: string;
   stickerId?: string;
+  quoteToken?: string;
   replyTo?: {
     id: string;
     text: string;
     sender: 'user' | 'webchat';
+    quoteToken?: string;
   };
   timestamp: number;
   status?: 'sending' | 'sent' | 'failed' | 'read';

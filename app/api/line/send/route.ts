@@ -37,15 +37,14 @@ export async function POST(req: NextRequest) {
         previewImageUrl: mediaUrl,
       };
     } else {
-      let sendText = text || '';
-      if (replyTo?.text) {
-        const targetAuthor = replyTo.sender === 'user' ? 'LINE User' : 'Admin';
-        sendText = `> [ตอบกลับ ${targetAuthor}]: ${replyTo.text}\n${sendText}`;
-      }
       lineMessagePayload = {
         type: 'text',
-        text: sendText,
+        text: text || '',
       };
+      // Pass native LINE quoteToken if available so LINE API renders native quote box on user device
+      if (replyTo?.quoteToken) {
+        lineMessagePayload.quoteToken = replyTo.quoteToken;
+      }
     }
 
     // Call LINE Push API if token is configured AND it is not a mock user ID
