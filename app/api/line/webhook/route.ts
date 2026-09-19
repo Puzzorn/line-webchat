@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/lib/store';
+import { MessageType } from '@/lib/types';
 
 export async function GET() {
   return NextResponse.json({ status: 'active', message: 'LINE Webhook endpoint is ready' }, { status: 200 });
@@ -70,12 +71,41 @@ export async function POST(req: NextRequest) {
     const events = payload.events || [];
 
     for (const event of events) {
-      // Handle message events
-      if (event.type === 'message' && event.message?.type === 'text') {
+      // Handle incoming LINE messages
+      if (event.type === 'message') {
         const userId = event.source?.userId;
-        const messageText = event.message.text;
+        const msg = event.message;
 
-        if (userId) {
+        if (userId && msg) {
+          let messageType: MessageType = 'text';
+          let text = '';
+          let mediaUrl: string | undefined = undefined;
+          let packageId: string | undefined = undefined;
+          let stickerId: string | undefined = undefined;
+
+          if (msg.type === 'text') {
+            messageType = 'text';
+            text = msg.text || '';
+          } else if (msg.type === 'sticker') {
+            messageType = 'sticker';
+            packageId = msg.packageId;
+            stickerId = msg.stickerId;
+            text = '[สติกเกอร์]';
+            if (stickerId) {
+              mediaUrl = `https://stickershop.line-scdn.net/stickershop/v1/sticker/${stickerId}/android/sticker.png`;
+            }
+          } else if (msg.type === 'image') {
+            messageType = 'image';
+            text = '[รูปภาพ]';
+            mediaUrl = `/api/line/image/${msg.id}`;
+          } else if (msg.type === 'location') {
+            messageType = 'location';
+            text = `📍 ${msg.title || msg.address || 'ตำแหน่งที่ตั้ง'}`;
+          } else {
+            messageType = 'file';
+            text = `📎 ${msg.fileName || 'ไฟล์แนบ'}`;
+          }
+
           // Fetch or update user profile
           const profile = await getLineUserProfile(userId, channelAccessToken);
           await db.saveUser({
@@ -83,16 +113,20 @@ export async function POST(req: NextRequest) {
             displayName: profile.displayName,
             pictureUrl: profile.pictureUrl,
             statusMessage: profile.statusMessage,
-            lastMessage: messageText,
+            lastMessage: text,
             lastMessageTimestamp: event.timestamp || Date.now(),
           });
 
           // Save incoming message
           await db.addMessage({
-            id: event.message.id || `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            id: msg.id || `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
             userId,
             sender: 'user',
-            text: messageText,
+            text: text,
+            type: messageType,
+            mediaUrl: mediaUrl,
+            packageId: packageId,
+            stickerId: stickerId,
             timestamp: event.timestamp || Date.now(),
             status: 'sent',
           });

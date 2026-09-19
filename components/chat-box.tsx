@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { LineUserProfile, ChatMessage } from '@/lib/types';
-import { Send, User, MessageCircle, AlertCircle, RefreshCw, Smartphone } from 'lucide-react';
+import { Send, User, MessageCircle, AlertCircle, RefreshCw, Smartphone, ExternalLink, ImageIcon, MapPin } from 'lucide-react';
 
 interface ChatBoxProps {
   selectedUser: LineUserProfile | null;
@@ -65,6 +65,30 @@ export function ChatBox({
     return new Date(timestamp).toLocaleTimeString('th-TH', {
       hour: '2-digit',
       minute: '2-digit',
+    });
+  };
+
+  // Helper to detect URLs and format clickable links
+  const renderFormattedText = (text: string) => {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = text.split(urlRegex);
+
+    return parts.map((part, i) => {
+      if (part.match(urlRegex)) {
+        return (
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline font-medium hover:opacity-80 transition-opacity inline-flex items-center gap-0.5 break-all underline-offset-2"
+          >
+            <span>{part}</span>
+            <ExternalLink className="w-3 h-3 inline flex-shrink-0" />
+          </a>
+        );
+      }
+      return part;
     });
   };
 
@@ -191,7 +215,7 @@ export function ChatBox({
                   </div>
                 )}
 
-                <div className={`max-w-[75%] sm:max-w-[65%] group`}>
+                <div className={`max-w-[80%] sm:max-w-[70%] group`}>
                   {/* Sender label */}
                   <p
                     className={`text-[10px] font-medium text-slate-400 mb-0.5 px-1 ${
@@ -201,16 +225,38 @@ export function ChatBox({
                     {isUser ? selectedUser.displayName : 'Webchat Admin'}
                   </p>
 
-                  {/* Message Bubble */}
-                  <div
-                    className={`rounded-2xl px-4 py-2 text-sm shadow-sm leading-relaxed break-words ${
-                      isUser
-                        ? 'bg-white text-slate-800 border border-slate-200/80 rounded-bl-none'
-                        : 'bg-emerald-600 text-white rounded-br-none'
-                    }`}
-                  >
-                    {msg.text}
-                  </div>
+                  {/* Rich Message Body Rendering */}
+                  {msg.type === 'sticker' && msg.mediaUrl ? (
+                    <div className="p-1">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={msg.mediaUrl}
+                        alt="LINE Sticker"
+                        className="w-28 h-28 object-contain drop-shadow-sm hover:scale-105 transition-transform"
+                      />
+                    </div>
+                  ) : msg.type === 'image' && msg.mediaUrl ? (
+                    <div className="rounded-2xl overflow-hidden max-w-xs shadow-sm border border-slate-200 bg-black/5">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={msg.mediaUrl}
+                        alt="LINE Attachment"
+                        className="w-full h-auto max-h-64 object-cover cursor-pointer hover:opacity-95 transition-opacity"
+                        onClick={() => window.open(msg.mediaUrl, '_blank')}
+                      />
+                    </div>
+                  ) : (
+                    /* Default Text / Link Message Bubble */
+                    <div
+                      className={`rounded-2xl px-4 py-2 text-sm shadow-sm leading-relaxed break-words ${
+                        isUser
+                          ? 'bg-white text-slate-800 border border-slate-200/80 rounded-bl-none'
+                          : 'bg-emerald-600 text-white rounded-br-none'
+                      }`}
+                    >
+                      {renderFormattedText(msg.text)}
+                    </div>
+                  )}
 
                   {/* Timestamp & Status */}
                   <div
@@ -219,11 +265,17 @@ export function ChatBox({
                     }`}
                   >
                     <span>{formatTime(msg.timestamp)}</span>
-                    {!isUser && msg.status === 'failed' && (
-                      <span className="text-rose-500 flex items-center space-x-0.5" title={msg.errorDetails}>
-                        <AlertCircle className="w-3 h-3" />
-                        <span>ล้มเหลว</span>
-                      </span>
+                    {!isUser && (
+                      msg.status === 'failed' ? (
+                        <span className="text-rose-500 flex items-center space-x-0.5" title={msg.errorDetails}>
+                          <AlertCircle className="w-3 h-3" />
+                          <span>ล้มเหลว</span>
+                        </span>
+                      ) : (
+                        <span className="text-emerald-600 font-medium ml-1">
+                          ส่งแล้ว
+                        </span>
+                      )
                     )}
                   </div>
                 </div>
