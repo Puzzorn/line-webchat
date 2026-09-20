@@ -149,6 +149,12 @@ export function ChatBox({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const lastMarkedReadTokenRef = useRef<string | null>(null);
+  const hasFetchedStickersRef = useRef(false);
+
+  // Reset last marked read token when user changes
+  useEffect(() => {
+    lastMarkedReadTokenRef.current = null;
+  }, [selectedUser?.userId]);
 
   // Automatically trigger LINE Mark as Read API when user chat is active and new messages arrive
   useEffect(() => {
@@ -176,7 +182,8 @@ export function ChatBox({
 
   // Dynamically fetch official LINE sticker metadata from LINE CDN API (/api/stickers)
   useEffect(() => {
-    if (showStickerPicker && stickerPacks === LINE_STICKER_PACKS) {
+    if (showStickerPicker && !hasFetchedStickersRef.current) {
+      hasFetchedStickersRef.current = true;
       setIsLoadingStickers(true);
       fetch('/api/stickers')
         .then((res) => res.json())
@@ -189,7 +196,7 @@ export function ChatBox({
         .catch((err) => console.error('Error fetching dynamic sticker packs:', err))
         .finally(() => setIsLoadingStickers(false));
     }
-  }, [showStickerPicker, stickerPacks]);
+  }, [showStickerPicker]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

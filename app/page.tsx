@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { LineUserProfile, ChatMessage, MessageType } from '@/lib/types';
 import { UserList } from '@/components/user-list';
 import { ChatBox } from '@/components/chat-box';
-
 import { playNotificationSound } from '@/lib/sound';
 
 export default function WebchatPage() {
@@ -18,21 +17,25 @@ export default function WebchatPage() {
   const [isLiveMode, setIsLiveMode] = useState(false);
   const [oaProfile, setOaProfile] = useState<{ displayName: string; pictureUrl: string } | null>(null);
 
-  // Clear unread count when user is selected
-  const handleSelectUser = useCallback(
-    (userId: string) => {
-      setSelectedUserId(userId);
-      fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, action: 'clear-unread' }),
-      }).then(() => {
-        fetchUsers();
-      });
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
+  const selectedUserIdRef = useRef<string | null>(selectedUserId);
+  const hasAutoSelectedRef = useRef(false);
+
+  useEffect(() => {
+    selectedUserIdRef.current = selectedUserId;
+  }, [selectedUserId]);
+
+  // Select user and clear unread count (Optimistic update, no fetchUsers loop)
+  const handleSelectUser = useCallback((userId: string) => {
+    setSelectedUserId(userId);
+    setUsers((prevUsers) =>
+      prevUsers.map((u) => (u.userId === userId ? { ...u, unreadCount: 0 } : u))
+    );
+    fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, action: 'clear-unread' }),
+    }).catch((err) => console.error('Error clearing unread:', err));
+  }, []);
 
   // Check system config mode (LIVE vs DEMO)
   const fetchConfig = useCallback(async () => {
@@ -61,27 +64,37 @@ export default function WebchatPage() {
   }, []);
 
   // Fetch all active LINE users
-  const fetchUsers = useCallback(async (isManualRefresh = false) => {
-    if (isManualRefresh) setIsRefreshingUsers(true);
-    try {
-      const res = await fetch('/api/users');
-      if (res.ok) {
-        const data = await res.json();
-        const fetchedUsers: LineUserProfile[] = data.users || [];
-        setUsers(fetchedUsers);
+  const fetchUsers = useCallback(
+    async (isManualRefresh = false) => {
+      if (isManualRefresh) setIsRefreshingUsers(true);
+      try {
+        const res = await fetch('/api/users');
+        if (res.ok) {
+          const data = await res.json();
+          const fetchedUsers: LineUserProfile[] = data.users || [];
+          setUsers(fetchedUsers);
 
-        // Auto select first user on desktop view if none selected
-        if (!selectedUserId && fetchedUsers.length > 0 && typeof window !== 'undefined' && window.innerWidth >= 768) {
-          handleSelectUser(fetchedUsers[0].userId);
+          // Auto select first user on desktop view ONCE on initial load
+          if (
+            !hasAutoSelectedRef.current &&
+            !selectedUserIdRef.current &&
+            fetchedUsers.length > 0 &&
+            typeof window !== 'undefined' &&
+            window.innerWidth >= 768
+          ) {
+            hasAutoSelectedRef.current = true;
+            handleSelectUser(fetchedUsers[0].userId);
+          }
         }
+      } catch (err) {
+        console.error('Error fetching users:', err);
+      } finally {
+        setIsLoadingUsers(false);
+        if (isManualRefresh) setIsRefreshingUsers(false);
       }
-    } catch (err) {
-      console.error('Error fetching users:', err);
-    } finally {
-      setIsLoadingUsers(false);
-      if (isManualRefresh) setIsRefreshingUsers(false);
-    }
-  }, [selectedUserId, handleSelectUser]);
+    },
+    [handleSelectUser]
+  );
 
   // Fetch message history for selected user
   const fetchMessages = useCallback(async (userId: string, isManualRefresh = false) => {
@@ -122,6 +135,14 @@ export default function WebchatPage() {
   // Real-Time Server-Sent Events (SSE) Listener & Sound Chime
   useEffect(() => {
     let eventSource: EventSource | null = null;
+    let debouncedUsersTimer: NodeJS.Timeout | null = null;
+
+    const debouncedFetchUsers = () => {
+      if (debouncedUsersTimer) clearTimeout(debouncedUsersTimer);
+      debouncedUsersTimer = setTimeout(() => {
+        fetchUsers();
+      }, 300);
+    };
 
     try {
       eventSource = new EventSource('/api/events');
@@ -137,8 +158,8 @@ export default function WebchatPage() {
               playNotificationSound();
             }
 
-            // Update active chat window instantly
-            if (selectedUserId && userId === selectedUserId && message) {
+            // Update active chat window instantly if message belongs to active chat
+            if (selectedUserIdRef.current && userId === selectedUserIdRef.current && message) {
               setMessages((prev) => {
                 const exists = prev.some((m) => m.id === message.id);
                 if (exists) {
@@ -148,42 +169,44 @@ export default function WebchatPage() {
               });
             }
 
-            // Update user list & unread count badge
-            fetchUsers();
+            // Refresh user list for unread count badge with debounce to handle bursts
+            debouncedFetchUsers();
           } else if (data.type === 'user-updated') {
-            fetchUsers();
+            debouncedFetchUsers();
           }
         } catch (err) {
           console.error('Error parsing SSE event data:', err);
         }
       };
 
-      eventSource.onerror = (err) => {
-        console.warn('SSE EventSource connection warning:', err);
+      eventSource.onerror = () => {
+        if (eventSource && eventSource.readyState === EventSource.CLOSED) {
+          console.warn('SSE EventSource connection closed.');
+        }
       };
     } catch (err) {
       console.error('Failed to initialize EventSource:', err);
     }
 
     return () => {
+      if (debouncedUsersTimer) clearTimeout(debouncedUsersTimer);
       if (eventSource) {
         eventSource.close();
       }
     };
-  }, [selectedUserId, fetchUsers]);
+  }, [fetchUsers]);
 
-  // Heartbeat fallback interval (every 10 seconds)
+  // Heartbeat fallback interval (every 15 seconds)
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchConfig();
       fetchUsers();
-      if (selectedUserId) {
-        fetchMessages(selectedUserId);
+      if (selectedUserIdRef.current) {
+        fetchMessages(selectedUserIdRef.current);
       }
-    }, 10000);
+    }, 15000);
 
     return () => clearInterval(interval);
-  }, [selectedUserId, fetchConfig, fetchUsers, fetchMessages]);
+  }, [fetchUsers, fetchMessages]);
 
   // Send Rich Message to LINE User (text, sticker, image, file)
   const handleSendMessage = async (
@@ -313,7 +336,7 @@ export default function WebchatPage() {
         body: JSON.stringify(mockWebhookBody),
       });
 
-      setSelectedUserId(randomId);
+      handleSelectUser(randomId);
       await fetchUsers();
     } catch (err) {
       console.error('Error adding mock user:', err);
