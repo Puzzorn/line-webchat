@@ -194,9 +194,16 @@ export function UserList({
                     <h2 className="font-semibold text-sm text-slate-900 truncate">
                       {user.displayName}
                     </h2>
-                    <span className="text-[11px] text-slate-400 ml-1 flex-shrink-0">
-                      {formatTime(user.lastMessageTimestamp)}
-                    </span>
+                    <div className="flex items-center space-x-1.5 flex-shrink-0 ml-1">
+                      {Boolean(user.unreadCount && user.unreadCount > 0) && (
+                        <span className="inline-flex items-center justify-center px-1.5 py-0.5 min-w-[18px] h-4 rounded-full text-[10px] font-bold bg-rose-500 text-white shadow-xs">
+                          {user.unreadCount! > 99 ? '99+' : user.unreadCount}
+                        </span>
+                      )}
+                      <span className="text-[11px] text-slate-400">
+                        {formatTime(user.lastMessageTimestamp)}
+                      </span>
+                    </div>
                   </div>
 
                   <p className="text-xs text-slate-500 truncate mt-1">

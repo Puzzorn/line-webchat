@@ -190,17 +190,31 @@ export const db = {
       await kvFetch('set', `line_webchat_msgs_${message.userId}`, JSON.stringify(userMessages));
     }
 
-    // Update user's last message
+    // Update user's last message and unread count
     const existingUser = await db.getUser(message.userId);
+    const isUserSender = message.sender === 'user';
+    const currentUnread = existingUser?.unreadCount || 0;
+
     await db.saveUser({
       userId: message.userId,
       displayName: existingUser?.displayName || `LINE User (${message.userId.slice(0, 6)})`,
       pictureUrl: existingUser?.pictureUrl,
       lastMessage: message.text,
       lastMessageTimestamp: message.timestamp,
+      unreadCount: isUserSender ? currentUnread + 1 : currentUnread,
     });
 
     return message;
+  },
+
+  clearUnreadCount: async (userId: string): Promise<void> => {
+    const existingUser = await db.getUser(userId);
+    if (existingUser && (existingUser.unreadCount || 0) > 0) {
+      await db.saveUser({
+        ...existingUser,
+        unreadCount: 0,
+      });
+    }
   },
 
   deleteMessage: async (userId: string, messageId: string): Promise<boolean> => {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { db } from '@/lib/store';
 import { MessageType } from '@/lib/types';
+import { chatEvents } from '@/lib/events';
 
 export async function GET() {
   return NextResponse.json({ status: 'active', message: 'LINE Webhook endpoint is ready' }, { status: 200 });
@@ -139,7 +140,7 @@ export async function POST(req: NextRequest) {
           });
 
           // Save incoming message
-          await db.addMessage({
+          const savedMessage = await db.addMessage({
             id: msg.id || `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
             lineMessageId: msg.id,
             userId,
@@ -155,6 +156,10 @@ export async function POST(req: NextRequest) {
             timestamp: event.timestamp || Date.now(),
             status: 'sent',
           });
+
+          // Broadcast real-time SSE event to Webchat clients
+          chatEvents.emit('new-message', { userId, message: savedMessage });
+          chatEvents.emit('user-updated', { userId });
         }
       }
     }

@@ -5,6 +5,8 @@ import { LineUserProfile, ChatMessage, MessageType } from '@/lib/types';
 import { UserList } from '@/components/user-list';
 import { ChatBox } from '@/components/chat-box';
 
+import { playNotificationSound } from '@/lib/sound';
+
 export default function WebchatPage() {
   const [users, setUsers] = useState<LineUserProfile[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -15,6 +17,22 @@ export default function WebchatPage() {
   const [isRefreshingMessages, setIsRefreshingMessages] = useState(false);
   const [isLiveMode, setIsLiveMode] = useState(false);
   const [oaProfile, setOaProfile] = useState<{ displayName: string; pictureUrl: string } | null>(null);
+
+  // Clear unread count when user is selected
+  const handleSelectUser = useCallback(
+    (userId: string) => {
+      setSelectedUserId(userId);
+      fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, action: 'clear-unread' }),
+      }).then(() => {
+        fetchUsers();
+      });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
 
   // Check system config mode (LIVE vs DEMO)
   const fetchConfig = useCallback(async () => {
@@ -54,7 +72,7 @@ export default function WebchatPage() {
 
         // Auto select first user on desktop view if none selected
         if (!selectedUserId && fetchedUsers.length > 0 && typeof window !== 'undefined' && window.innerWidth >= 768) {
-          setSelectedUserId(fetchedUsers[0].userId);
+          handleSelectUser(fetchedUsers[0].userId);
         }
       }
     } catch (err) {
@@ -63,7 +81,7 @@ export default function WebchatPage() {
       setIsLoadingUsers(false);
       if (isManualRefresh) setIsRefreshingUsers(false);
     }
-  }, [selectedUserId]);
+  }, [selectedUserId, handleSelectUser]);
 
   // Fetch message history for selected user
   const fetchMessages = useCallback(async (userId: string, isManualRefresh = false) => {
@@ -101,7 +119,60 @@ export default function WebchatPage() {
     }
   }, [selectedUserId, fetchMessages]);
 
-  // Polling for live updates every 3 seconds
+  // Real-Time Server-Sent Events (SSE) Listener & Sound Chime
+  useEffect(() => {
+    let eventSource: EventSource | null = null;
+
+    try {
+      eventSource = new EventSource('/api/events');
+
+      eventSource.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.type === 'new-message') {
+            const { userId, message } = data;
+
+            // Play notification sound for incoming user messages
+            if (message?.sender === 'user') {
+              playNotificationSound();
+            }
+
+            // Update active chat window instantly
+            if (selectedUserId && userId === selectedUserId && message) {
+              setMessages((prev) => {
+                const exists = prev.some((m) => m.id === message.id);
+                if (exists) {
+                  return prev.map((m) => (m.id === message.id ? message : m));
+                }
+                return [...prev, message];
+              });
+            }
+
+            // Update user list & unread count badge
+            fetchUsers();
+          } else if (data.type === 'user-updated') {
+            fetchUsers();
+          }
+        } catch (err) {
+          console.error('Error parsing SSE event data:', err);
+        }
+      };
+
+      eventSource.onerror = (err) => {
+        console.warn('SSE EventSource connection warning:', err);
+      };
+    } catch (err) {
+      console.error('Failed to initialize EventSource:', err);
+    }
+
+    return () => {
+      if (eventSource) {
+        eventSource.close();
+      }
+    };
+  }, [selectedUserId, fetchUsers]);
+
+  // Heartbeat fallback interval (every 10 seconds)
   useEffect(() => {
     const interval = setInterval(() => {
       fetchConfig();
@@ -109,7 +180,7 @@ export default function WebchatPage() {
       if (selectedUserId) {
         fetchMessages(selectedUserId);
       }
-    }, 3000);
+    }, 10000);
 
     return () => clearInterval(interval);
   }, [selectedUserId, fetchConfig, fetchUsers, fetchMessages]);
@@ -257,7 +328,7 @@ export default function WebchatPage() {
       <UserList
         users={users}
         selectedUserId={selectedUserId}
-        onSelectUser={(userId) => setSelectedUserId(userId)}
+        onSelectUser={handleSelectUser}
         onAddMockUser={handleAddMockUser}
         onRefresh={() => fetchUsers(true)}
         isLoadingUsers={isLoadingUsers}

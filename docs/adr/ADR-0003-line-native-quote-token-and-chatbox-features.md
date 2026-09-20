@@ -31,6 +31,12 @@
    - **Mark as Read API Endpoint (`/api/line/mark-as-read`):** ยิง `POST https://api.line.me/v2/bot/chat/markAsRead` แนบ `markAsReadToken` เพื่อทำเครื่องหมายว่าแอดมินอ่านข้อความของผู้ใช้แล้วบนระบบ LINE OA Manager
    - **Auto Trigger:** สั่งงานยิง `markAsRead` อัตโนมัติเมื่อแอดมินเปิดแชทค้างไว้หรือกดสลับเลือกผู้ใช้นั้นๆ ใน Webchat UI
 
+7. **Server-Sent Events (SSE) Real-Time Push & Web Audio Chime:**
+   - **In-Memory Event Bus (`lib/events.ts`):** สร้าง Event Emitter สำหรับกระจายเหตุการณ์ข้อความเข้าและอัปเดตสถานะผู้ใช้
+   - **SSE Endpoint (`/api/events`):** Route Handler แบบ `text/event-stream` กระจายอัปเดตแบบ Real-Time ไปยังหน้าเว็บโดยไม่ต้องกด Refresh
+   - **Web Audio API Chime (`lib/sound.ts`):** เสียงปิ๊ปแจ้งเตือน (Chime sound) เมื่อมีข้อความใหม่จากผู้ใช้ LINE เข้ามายังระบบ Webchat
+   - **Unread Badge Count:** ป้ายตัวเลขสีแดงนับจำนวนข้อความที่ยังไม่ได้อ่านบนรายชื่อผู้ใช้ และเคลียร์เป็น 0 อัตโนมัติเมื่อแอดมินเปิดอ่านแชท
+
 ## Consequences
 
 - **Positive:** รองรับการแสดงผล Quoted Reply ตรงตามมาตรฐาน LINE API 100% ทั้งฝั่ง Webchat และแอป LINE บนมือถือ, เพิ่มมิติความเสถียรและความสวยงามของ UI

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/store';
 import { ChatMessage, MessageType } from '@/lib/types';
+import { chatEvents } from '@/lib/events';
 
 export async function POST(req: NextRequest) {
   try {
@@ -105,6 +106,10 @@ export async function POST(req: NextRequest) {
     };
 
     await db.addMessage(newMessage);
+
+    // Broadcast SSE real-time event
+    chatEvents.emit('new-message', { userId, message: newMessage });
+    chatEvents.emit('user-updated', { userId });
 
     return NextResponse.json({
       success: true,

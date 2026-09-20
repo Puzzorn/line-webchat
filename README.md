@@ -18,6 +18,10 @@
 - ✅ **รองรับข้อความประเภท Rich Content:**
   * 📝 **Text & Clickable Links:** แปลงลิงก์ URL ในข้อความให้กลายเป็นปุ่มกดเปิดลิงก์อัตโนมัติ
   * 🖼️ **Images & File Attachments:** แสดงพรีวิวรูปภาพที่ส่งมาจาก LINE ผ่าน Secure Image Proxy API (`/api/line/image/[messageId]`) และแนบไฟล์เอกสาร
+- ✅ **ระบบแจ้งเตือนข้อความเข้า Real-Time & เสียงแจ้งเตือน (Real-Time SSE Stream & Web Audio Chime):**
+  * ⚡ **Server-Sent Events (SSE - `/api/events`):** กระจายข้อความใหม่แบบ Real-Time เข้าสู่หน้าจอแชททันทีโดยไม่ต้องกด Refresh หรือทำ Polling
+  * 🔔 **Web Audio API Sound Notification:** เสียงปิ๊ปสังเคราะห์แจ้งเตือน (Chime sound) อัตโนมัติเมื่อมีข้อความใหม่จากลูกค้าเข้ามา
+  * 🔴 **Unread Badge Count:** ป้ายปุ่มสีแดงแสดงจำนวนข้อความที่ยังไม่ได้อ่านแยกตามรายชื่อผู้ใช้ และรีเซ็ตอัตโนมัติเมื่อกดเปิดดู
 - ✅ **รองรับระบบทำเครื่องหมายอ่านแล้ว (LINE Official Mark as Read API):**
   * 👁️ **`markAsReadToken` Integration:** สกัดและบันทึก `markAsReadToken` จากข้อความเข้าทาง Webhook และส่งยิง `POST /v2/bot/chat/markAsRead` ไปยัง LINE API อัตโนมัติเมื่อแอดมินเปิดอ่านแชทบน Webchat
 - ✅ **ซิงค์ข้อมูลบน Serverless (Vercel KV / Upstash Redis HTTP POST):** อัปเกรดระบบจัดเก็บข้อมูล KV REST API ใช้ HTTP POST เพื่อรองรับ Payload ขนาดใหญ่ (Base64/Data URI) ข้ามทุก Vercel Serverless Function Instance
@@ -37,6 +41,7 @@ line-webchat/
 ├── app/                          # Presentation & Routing Layer (Next.js App Router)
 │   ├── api/
 │   │   ├── config/route.ts       # Check System Mode (Live vs Demo)
+│   │   ├── events/route.ts       # Server-Sent Events (SSE) Real-Time Stream API
 │   │   ├── line/
 │   │   │   ├── image/[messageId]/# Secure Proxy API for LINE Image Content
 │   │   │   ├── mark-as-read/     # Official LINE Mark as Read API Route
