@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const limit = limitParam ? parseInt(limitParam, 10) : 50;
+    const limit = limitParam ? parseInt(limitParam, 10) : 25;
     const totalCount = allMessages.length;
     const hasMore = totalCount > limit;
 

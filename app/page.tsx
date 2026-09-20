@@ -110,7 +110,7 @@ export default function WebchatPage() {
       if (beforeTimestamp) setIsLoadingOlderMessages(true);
 
       try {
-        let url = `/api/messages?userId=${encodeURIComponent(userId)}&limit=50`;
+        let url = `/api/messages?userId=${encodeURIComponent(userId)}&limit=25`;
         if (beforeTimestamp) {
           url += `&beforeTimestamp=${beforeTimestamp}`;
         }

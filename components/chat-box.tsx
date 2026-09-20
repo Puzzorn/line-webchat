@@ -161,13 +161,30 @@ export function ChatBox({
   const isPrependingRef = useRef(false);
   const prevScrollHeightRef = useRef(0);
   const prevScrollTopRef = useRef(0);
+  const isPinnedToBottomRef = useRef(true);
 
-  // Reset initial load flag and last marked read token when user changes
+  // Reset initial load flag and scroll pin status when selected user changes
   useEffect(() => {
     lastMarkedReadTokenRef.current = null;
     isInitialLoadRef.current = true;
     isPrependingRef.current = false;
+    isPinnedToBottomRef.current = true;
   }, [selectedUser?.userId]);
+
+  // Track user scroll events to know if chat should remain pinned to bottom
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      if (isPrependingRef.current) return;
+      const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 80;
+      isPinnedToBottomRef.current = isAtBottom;
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Automatically trigger LINE Mark as Read API when user chat is active and new messages arrive
   useEffect(() => {
@@ -211,16 +228,6 @@ export function ChatBox({
     }
   }, [showStickerPicker]);
 
-  const forceScrollToBottom = (instant = false) => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-    if (instant) {
-      container.scrollTop = container.scrollHeight;
-    } else {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
   const handleLoadOlder = async () => {
     if (!onLoadOlderMessages || isLoadingOlderMessages) return;
     const container = messagesContainerRef.current;
@@ -232,9 +239,10 @@ export function ChatBox({
     await onLoadOlderMessages();
   };
 
+  // Primary scroll to bottom effect when messages update or user changes
   useEffect(() => {
     const container = messagesContainerRef.current;
-    if (!container) return;
+    if (!container || isLoadingMessages) return;
 
     if (isPrependingRef.current) {
       // Restore scroll offset when older messages are prepended
@@ -242,40 +250,53 @@ export function ChatBox({
       const heightDiff = newScrollHeight - prevScrollHeightRef.current;
       container.scrollTop = prevScrollTopRef.current + heightDiff;
       isPrependingRef.current = false;
-    } else if (isInitialLoadRef.current) {
-      // Multi-pass scroll to bottom to prevent image layout shift issues
-      forceScrollToBottom(true);
-      requestAnimationFrame(() => forceScrollToBottom(true));
-      const t1 = setTimeout(() => forceScrollToBottom(true), 100);
-      const t2 = setTimeout(() => forceScrollToBottom(true), 300);
-      const t3 = setTimeout(() => forceScrollToBottom(true), 600);
-      isInitialLoadRef.current = false;
+      return;
+    }
+
+    if (isPinnedToBottomRef.current) {
+      const scrollToBottomInstant = () => {
+        if (container && isPinnedToBottomRef.current) {
+          container.scrollTop = container.scrollHeight;
+        }
+      };
+
+      scrollToBottomInstant();
+      requestAnimationFrame(scrollToBottomInstant);
+      const t1 = setTimeout(scrollToBottomInstant, 50);
+      const t2 = setTimeout(scrollToBottomInstant, 150);
+      const t3 = setTimeout(scrollToBottomInstant, 300);
+      const t4 = setTimeout(scrollToBottomInstant, 600);
+      const t5 = setTimeout(scrollToBottomInstant, 1000);
+
       return () => {
         clearTimeout(t1);
         clearTimeout(t2);
         clearTimeout(t3);
+        clearTimeout(t4);
+        clearTimeout(t5);
       };
-    } else {
-      // Only scroll to bottom if user was already near the bottom
-      const isNear = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
-      if (isNear) {
-        forceScrollToBottom(false);
-      }
     }
-  }, [messages]);
+  }, [messages, isLoadingMessages, selectedUser?.userId]);
 
-  // Image load listener to handle layout shifts dynamically when images render
+  // ResizeObserver & Image load listeners to guarantee remaining at bottom during image layout shifts
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
 
-    const handleImgLoad = () => {
-      const isNear = container.scrollHeight - container.scrollTop - container.clientHeight < 200;
-      if (isNear || isInitialLoadRef.current) {
+    const forceBottomIfPinned = () => {
+      if (isPinnedToBottomRef.current && !isPrependingRef.current) {
         container.scrollTop = container.scrollHeight;
       }
     };
 
+    const resizeObserver = new ResizeObserver(() => {
+      forceBottomIfPinned();
+    });
+
+    resizeObserver.observe(container);
+    Array.from(container.children).forEach((child) => resizeObserver.observe(child));
+
+    const handleImgLoad = () => forceBottomIfPinned();
     const imgs = container.querySelectorAll('img');
     imgs.forEach((img) => {
       if (!img.complete) {
@@ -284,11 +305,10 @@ export function ChatBox({
     });
 
     return () => {
-      imgs.forEach((img) => {
-        img.removeEventListener('load', handleImgLoad);
-      });
+      resizeObserver.disconnect();
+      imgs.forEach((img) => img.removeEventListener('load', handleImgLoad));
     };
-  }, [messages]);
+  }, [messages, isLoadingMessages]);
 
   const handleJumpToMessage = (targetMsgId: string) => {
     // Search for message by ID or lineMessageId to support both internal and LINE message IDs
