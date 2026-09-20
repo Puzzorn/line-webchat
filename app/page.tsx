@@ -208,18 +208,6 @@ export default function WebchatPage() {
     };
   }, [fetchUsers]);
 
-  // Heartbeat fallback interval (every 15 seconds)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchUsers();
-      if (selectedUserIdRef.current) {
-        fetchMessages(selectedUserIdRef.current);
-      }
-    }, 15000);
-
-    return () => clearInterval(interval);
-  }, [fetchUsers, fetchMessages]);
-
   // Send Rich Message to LINE User (text, sticker, image, file)
   const handleSendMessage = async (
     text: string,

@@ -146,14 +146,17 @@ export function ChatBox({
   const [isLoadingStickers, setIsLoadingStickers] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const lastMarkedReadTokenRef = useRef<string | null>(null);
   const hasFetchedStickersRef = useRef(false);
+  const isInitialLoadRef = useRef(true);
 
-  // Reset last marked read token when user changes
+  // Reset initial load flag and last marked read token when user changes
   useEffect(() => {
     lastMarkedReadTokenRef.current = null;
+    isInitialLoadRef.current = true;
   }, [selectedUser?.userId]);
 
   // Automatically trigger LINE Mark as Read API when user chat is active and new messages arrive
@@ -198,12 +201,25 @@ export function ChatBox({
     }
   }, [showStickerPicker]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Smart scroll to bottom (only when initial load or scrolled near bottom)
+  const scrollToBottomIfNeeded = () => {
+    const container = messagesContainerRef.current;
+    if (!container) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+
+    const isNearBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+
+    if (isInitialLoadRef.current || isNearBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      isInitialLoadRef.current = false;
+    }
   };
 
   useEffect(() => {
-    scrollToBottom();
+    scrollToBottomIfNeeded();
   }, [messages]);
 
   const handleJumpToMessage = (targetMsgId: string) => {
@@ -514,7 +530,7 @@ export function ChatBox({
       )}
 
       {/* Messages List / Skeleton Loading */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3">
         {isLoadingMessages ? (
           <ChatMessageSkeleton />
         ) : messages.length === 0 ? (
