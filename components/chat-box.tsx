@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { LineUserProfile, ChatMessage, MessageType } from '@/lib/types';
 import {
   Send,
@@ -171,20 +171,58 @@ export function ChatBox({
     isPinnedToBottomRef.current = true;
   }, [selectedUser?.userId]);
 
-  // Track user scroll events to know if chat should remain pinned to bottom
+  const handleLoadOlder = useCallback(async () => {
+    if (!onLoadOlderMessages || isLoadingOlderMessages || isPrependingRef.current) return;
+    const container = messagesContainerRef.current;
+    if (container) {
+      isPinnedToBottomRef.current = false;
+      isPrependingRef.current = true;
+      prevScrollHeightRef.current = container.scrollHeight;
+      prevScrollTopRef.current = container.scrollTop;
+    }
+    await onLoadOlderMessages();
+  }, [onLoadOlderMessages, isLoadingOlderMessages]);
+
+  // Track user scroll events to unpin from bottom and trigger automatic infinite scroll at top
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
 
     const handleScroll = () => {
       if (isPrependingRef.current) return;
+
       const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 80;
       isPinnedToBottomRef.current = isAtBottom;
+
+      // Automatic infinite scroll when scrolling near top (< 120px)
+      if (
+        container.scrollTop < 120 &&
+        hasMoreMessages &&
+        !isLoadingOlderMessages &&
+        !isPrependingRef.current &&
+        onLoadOlderMessages
+      ) {
+        handleLoadOlder();
+      }
     };
 
     container.addEventListener('scroll', handleScroll, { passive: true });
     return () => container.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [hasMoreMessages, isLoadingOlderMessages, onLoadOlderMessages, handleLoadOlder]);
+
+  // Automatically trigger loading older messages if chat container has no scrollbar (big screen)
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container || isLoadingMessages || isLoadingOlderMessages || isPrependingRef.current) return;
+
+    if (
+      hasMoreMessages &&
+      container.scrollHeight <= container.clientHeight + 50 &&
+      onLoadOlderMessages
+    ) {
+      handleLoadOlder();
+    }
+  }, [messages, hasMoreMessages, isLoadingMessages, isLoadingOlderMessages, onLoadOlderMessages, handleLoadOlder]);
 
   // Automatically trigger LINE Mark as Read API when user chat is active and new messages arrive
   useEffect(() => {
@@ -228,18 +266,7 @@ export function ChatBox({
     }
   }, [showStickerPicker]);
 
-  const handleLoadOlder = async () => {
-    if (!onLoadOlderMessages || isLoadingOlderMessages) return;
-    const container = messagesContainerRef.current;
-    if (container) {
-      prevScrollHeightRef.current = container.scrollHeight;
-      prevScrollTopRef.current = container.scrollTop;
-      isPrependingRef.current = true;
-    }
-    await onLoadOlderMessages();
-  };
-
-  // Primary scroll to bottom effect when messages update or user changes
+  // Primary scroll effect: handles initial bottom scroll & history prepending scroll preservation
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container || isLoadingMessages) return;
@@ -249,13 +276,19 @@ export function ChatBox({
       const newScrollHeight = container.scrollHeight;
       const heightDiff = newScrollHeight - prevScrollHeightRef.current;
       container.scrollTop = prevScrollTopRef.current + heightDiff;
-      isPrependingRef.current = false;
-      return;
+      isPinnedToBottomRef.current = false;
+
+      // Keep isPrependingRef locked briefly so ResizeObserver/Image loads don't jerk the scrollbar
+      const t = setTimeout(() => {
+        isPrependingRef.current = false;
+      }, 400);
+
+      return () => clearTimeout(t);
     }
 
     if (isPinnedToBottomRef.current) {
       const scrollToBottomInstant = () => {
-        if (container && isPinnedToBottomRef.current) {
+        if (container && isPinnedToBottomRef.current && !isPrependingRef.current) {
           container.scrollTop = container.scrollHeight;
         }
       };
@@ -627,23 +660,13 @@ export function ChatBox({
           </div>
         ) : (
           <>
-            {hasMoreMessages && (
-              <div className="flex justify-center py-2 mb-1">
-                <button
-                  type="button"
-                  onClick={handleLoadOlder}
-                  disabled={isLoadingOlderMessages}
-                  className="text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3.5 py-1.5 rounded-full transition-colors flex items-center space-x-1.5 shadow-2xs disabled:opacity-50 cursor-pointer"
-                >
-                  {isLoadingOlderMessages ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600" />
-                      <span>กำลังดึงข้อความเก่า...</span>
-                    </>
-                  ) : (
-                    <span>โหลดข้อความย้อนหลัง</span>
-                  )}
-                </button>
+            {/* Automatic Infinite Scroll Spinner Indicator */}
+            {isLoadingOlderMessages && (
+              <div className="flex justify-center py-2 mb-1 animate-fadeIn">
+                <div className="flex items-center space-x-2 text-xs font-medium text-emerald-700 bg-emerald-50/90 backdrop-blur-xs px-3.5 py-1.5 rounded-full border border-emerald-200/80 shadow-2xs">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                  <span>กำลังดึงข้อความย้อนหลัง...</span>
+                </div>
               </div>
             )}
             {messages.map((msg, index) => {
