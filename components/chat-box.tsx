@@ -38,6 +38,9 @@ interface ChatBoxProps {
   onDeleteMessage?: (msgId: string) => Promise<void>;
   onBack?: () => void;
   onRefresh?: () => void;
+  hasMoreMessages?: boolean;
+  isLoadingOlderMessages?: boolean;
+  onLoadOlderMessages?: () => Promise<void>;
   isLoadingMessages?: boolean;
   isRefreshingMessages?: boolean;
   isLiveMode?: boolean;
@@ -126,6 +129,9 @@ export function ChatBox({
   onDeleteMessage,
   onBack,
   onRefresh,
+  hasMoreMessages = false,
+  isLoadingOlderMessages = false,
+  onLoadOlderMessages,
   isLoadingMessages = false,
   isRefreshingMessages = false,
   isLiveMode = false,
@@ -152,11 +158,15 @@ export function ChatBox({
   const lastMarkedReadTokenRef = useRef<string | null>(null);
   const hasFetchedStickersRef = useRef(false);
   const isInitialLoadRef = useRef(true);
+  const isPrependingRef = useRef(false);
+  const prevScrollHeightRef = useRef(0);
+  const prevScrollTopRef = useRef(0);
 
   // Reset initial load flag and last marked read token when user changes
   useEffect(() => {
     lastMarkedReadTokenRef.current = null;
     isInitialLoadRef.current = true;
+    isPrependingRef.current = false;
   }, [selectedUser?.userId]);
 
   // Automatically trigger LINE Mark as Read API when user chat is active and new messages arrive
@@ -201,25 +211,83 @@ export function ChatBox({
     }
   }, [showStickerPicker]);
 
-  // Smart scroll to bottom (only when initial load or scrolled near bottom)
-  const scrollToBottomIfNeeded = () => {
+  const forceScrollToBottom = (instant = false) => {
     const container = messagesContainerRef.current;
-    if (!container) {
+    if (!container) return;
+    if (instant) {
+      container.scrollTop = container.scrollHeight;
+    } else {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      return;
-    }
-
-    const isNearBottom =
-      container.scrollHeight - container.scrollTop - container.clientHeight < 150;
-
-    if (isInitialLoadRef.current || isNearBottom) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      isInitialLoadRef.current = false;
     }
   };
 
+  const handleLoadOlder = async () => {
+    if (!onLoadOlderMessages || isLoadingOlderMessages) return;
+    const container = messagesContainerRef.current;
+    if (container) {
+      prevScrollHeightRef.current = container.scrollHeight;
+      prevScrollTopRef.current = container.scrollTop;
+      isPrependingRef.current = true;
+    }
+    await onLoadOlderMessages();
+  };
+
   useEffect(() => {
-    scrollToBottomIfNeeded();
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    if (isPrependingRef.current) {
+      // Restore scroll offset when older messages are prepended
+      const newScrollHeight = container.scrollHeight;
+      const heightDiff = newScrollHeight - prevScrollHeightRef.current;
+      container.scrollTop = prevScrollTopRef.current + heightDiff;
+      isPrependingRef.current = false;
+    } else if (isInitialLoadRef.current) {
+      // Multi-pass scroll to bottom to prevent image layout shift issues
+      forceScrollToBottom(true);
+      requestAnimationFrame(() => forceScrollToBottom(true));
+      const t1 = setTimeout(() => forceScrollToBottom(true), 100);
+      const t2 = setTimeout(() => forceScrollToBottom(true), 300);
+      const t3 = setTimeout(() => forceScrollToBottom(true), 600);
+      isInitialLoadRef.current = false;
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+        clearTimeout(t3);
+      };
+    } else {
+      // Only scroll to bottom if user was already near the bottom
+      const isNear = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+      if (isNear) {
+        forceScrollToBottom(false);
+      }
+    }
+  }, [messages]);
+
+  // Image load listener to handle layout shifts dynamically when images render
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleImgLoad = () => {
+      const isNear = container.scrollHeight - container.scrollTop - container.clientHeight < 200;
+      if (isNear || isInitialLoadRef.current) {
+        container.scrollTop = container.scrollHeight;
+      }
+    };
+
+    const imgs = container.querySelectorAll('img');
+    imgs.forEach((img) => {
+      if (!img.complete) {
+        img.addEventListener('load', handleImgLoad);
+      }
+    });
+
+    return () => {
+      imgs.forEach((img) => {
+        img.removeEventListener('load', handleImgLoad);
+      });
+    };
   }, [messages]);
 
   const handleJumpToMessage = (targetMsgId: string) => {
@@ -538,7 +606,27 @@ export function ChatBox({
             ยังไม่มีประวัติการสนทนากับผู้ใช้นี้
           </div>
         ) : (
-          messages.map((msg, index) => {
+          <>
+            {hasMoreMessages && (
+              <div className="flex justify-center py-2 mb-1">
+                <button
+                  type="button"
+                  onClick={handleLoadOlder}
+                  disabled={isLoadingOlderMessages}
+                  className="text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3.5 py-1.5 rounded-full transition-colors flex items-center space-x-1.5 shadow-2xs disabled:opacity-50 cursor-pointer"
+                >
+                  {isLoadingOlderMessages ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                      <span>กำลังดึงข้อความเก่า...</span>
+                    </>
+                  ) : (
+                    <span>โหลดข้อความย้อนหลัง</span>
+                  )}
+                </button>
+              </div>
+            )}
+            {messages.map((msg, index) => {
             const isUser = msg.sender === 'user';
             const isFailed = msg.status === 'failed';
 
@@ -772,7 +860,8 @@ export function ChatBox({
                 </div>
               </div>
             );
-          })
+          })}
+        </>
         )}
         <div ref={messagesEndRef} />
       </div>

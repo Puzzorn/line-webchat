@@ -14,6 +14,8 @@ export default function WebchatPage() {
   const [isRefreshingUsers, setIsRefreshingUsers] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isRefreshingMessages, setIsRefreshingMessages] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
   const [isLiveMode, setIsLiveMode] = useState(false);
   const [oaProfile, setOaProfile] = useState<{ displayName: string; pictureUrl: string } | null>(null);
 
@@ -101,22 +103,52 @@ export default function WebchatPage() {
     [handleSelectUser]
   );
 
-  // Fetch message history for selected user
-  const fetchMessages = useCallback(async (userId: string, isManualRefresh = false) => {
-    if (isManualRefresh) setIsRefreshingMessages(true);
-    try {
-      const res = await fetch(`/api/messages?userId=${encodeURIComponent(userId)}`);
-      if (res.ok) {
-        const data = await res.json();
-        setMessages(data.messages || []);
+  // Fetch message history for selected user (with pagination support)
+  const fetchMessages = useCallback(
+    async (userId: string, isManualRefresh = false, beforeTimestamp?: number) => {
+      if (isManualRefresh) setIsRefreshingMessages(true);
+      if (beforeTimestamp) setIsLoadingOlderMessages(true);
+
+      try {
+        let url = `/api/messages?userId=${encodeURIComponent(userId)}&limit=50`;
+        if (beforeTimestamp) {
+          url += `&beforeTimestamp=${beforeTimestamp}`;
+        }
+
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          const fetchedMsgs: ChatMessage[] = data.messages || [];
+          setHasMoreMessages(data.hasMore || false);
+
+          if (beforeTimestamp) {
+            // Prepend older history slice to existing messages
+            setMessages((prev) => {
+              const existingIds = new Set(prev.map((m) => m.id));
+              const newUnique = fetchedMsgs.filter((m) => !existingIds.has(m.id));
+              return [...newUnique, ...prev];
+            });
+          } else {
+            setMessages(fetchedMsgs);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching messages:', err);
+      } finally {
+        setIsLoadingMessages(false);
+        setIsLoadingOlderMessages(false);
+        if (isManualRefresh) setIsRefreshingMessages(false);
       }
-    } catch (err) {
-      console.error('Error fetching messages:', err);
-    } finally {
-      setIsLoadingMessages(false);
-      if (isManualRefresh) setIsRefreshingMessages(false);
-    }
-  }, []);
+    },
+    []
+  );
+
+  // Load older messages callback
+  const handleLoadOlderMessages = useCallback(async () => {
+    if (!selectedUserId || messages.length === 0 || isLoadingOlderMessages) return;
+    const oldestTimestamp = messages[0].timestamp;
+    await fetchMessages(selectedUserId, false, oldestTimestamp);
+  }, [selectedUserId, messages, isLoadingOlderMessages, fetchMessages]);
 
   // Initial load
   useEffect(() => {
@@ -129,10 +161,12 @@ export default function WebchatPage() {
   useEffect(() => {
     if (selectedUserId) {
       setMessages([]); // Instant clear to trigger ChatMessageSkeleton on desktop switch
+      setHasMoreMessages(false);
       setIsLoadingMessages(true);
       fetchMessages(selectedUserId);
     } else {
       setMessages([]);
+      setHasMoreMessages(false);
       setIsLoadingMessages(false);
     }
   }, [selectedUserId, fetchMessages]);
@@ -371,6 +405,9 @@ export default function WebchatPage() {
         onDeleteMessage={handleDeleteMessage}
         onBack={() => setSelectedUserId(null)}
         onRefresh={() => selectedUserId && fetchMessages(selectedUserId, true)}
+        hasMoreMessages={hasMoreMessages}
+        isLoadingOlderMessages={isLoadingOlderMessages}
+        onLoadOlderMessages={handleLoadOlderMessages}
         isLoadingMessages={isLoadingMessages}
         isRefreshingMessages={isRefreshingMessages}
         isLiveMode={isLiveMode}
