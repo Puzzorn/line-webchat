@@ -11,6 +11,10 @@
   * 💬 **LINE Native `quoteToken` Support:** บันทึกและส่ง `quoteToken` ร่วมกับ LINE Push API ทำให้แอป LINE บนมือถือผู้ใช้และ LINE OA Manager แสดงผลกล่อง Quote อ้างอิงอย่างเป็นทางการ
   * 🎯 **Smooth Scroll & Soft Highlight:** คลิกที่การ์ด Quote ข้อความเพื่อเลื่อน (Smooth Scroll) ไปยังข้อความต้นทาง พร้อมเอฟเฟกต์ไฮไลต์สีเหลืองอำพันนุ่มนวลจางๆ ไร้ขอบ อัตโนมัติ
   * 🔘 **3-Dot Context Menu:** เมนูตัวเลือก 3 จุด (`...`) ข้างกล่องแชทสำหรับ ตอบกลับ, คัดลอกข้อความ, ลองส่งใหม่ หรือ ลบข้อความ
+- ✅ **ระบบโหลดประวัติแชทแบ่งหน้าและ Infinite Scroll อัตโนมัติ (Paginated History & Auto Infinite Scroll):**
+  * ⚡ **Paginated History API (`/api/messages?userId=X&limit=25&beforeTimestamp=Y`):** โหลดประวัติแชทเริ่มต้น 25 ข้อความล่าสุดเพื่อเพิ่มประสิทธิภาพและลดภาระการโหลดข้อมูล
+  * 📜 **Automatic Infinite Scroll:** เมื่อเลื่อนขึ้นใกล้บนสุด (`scrollTop < 120px`) ระบบจะดึงประวัติข้อความเก่ากว่าให้อัตโนมัติ พร้อมแสดงแถบสปินเนอร์ Loading สวยงาม
+  * 📌 **Scroll Offset Preservation & Bottom Pinning:** คำนวณความสูงและล็อคตำแหน่งการมองเห็นของผู้ใช้ไว้ที่เดิมไม่ให้กระตุกหรือเด้งกลับล่างสุดขณะโหลดประวัติเก่า พร้อมระบบ Multi-pass Image Load & ResizeObserver ล็อคหน้าจอให้อยู่ล่างสุดเมื่อเปิดห้องแชทครั้งแรก
 - ✅ **จัดกลุ่มประวัติแชทตามวันที่ (Date Grouping Divider):** แสดงป้ายบอกวันที่ ("วันนี้", "เมื่อวานนี้", "19 ก.ย. 2569") แบ่งกลุ่มข้อความอัตโนมัติ
 - ✅ **โปรไฟล์ผู้ใช้งานและหน้าต่างรายละเอียด (User Profile Modal):** คลิกที่รูปหรือชื่อผู้ใช้เพื่อดูข้อมูลโปรไฟล์ (Display Name, User ID, Status Message, เวลาข้อความล่าสุด)
 - ✅ **คลังสติกเกอร์ LINE แบบ Dynamic API (Dynamic LINE Sticker Shop Metadata):**
