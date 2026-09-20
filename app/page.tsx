@@ -72,7 +72,12 @@ export default function WebchatPage() {
         if (res.ok) {
           const data = await res.json();
           const fetchedUsers: LineUserProfile[] = data.users || [];
-          setUsers(fetchedUsers);
+          
+          // Guarantee unreadCount is 0 for currently selected active chat user
+          const processedUsers = fetchedUsers.map((u) =>
+            u.userId === selectedUserIdRef.current ? { ...u, unreadCount: 0 } : u
+          );
+          setUsers(processedUsers);
 
           // Auto select first user on desktop view ONCE on initial load
           if (
@@ -167,6 +172,13 @@ export default function WebchatPage() {
                 }
                 return [...prev, message];
               });
+
+              // Automatically clear unread count for active chat in DB
+              fetch('/api/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, action: 'clear-unread' }),
+              }).catch((err) => console.error('Error clearing unread for active chat:', err));
             }
 
             // Refresh user list for unread count badge with debounce to handle bursts
